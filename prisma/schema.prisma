@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Produto {
+  id        String          @id @default(cuid())
+  nome      String
+  descricao String?
+  unidade   String?         @default("un") // e.g. cx, kg, un
+  createdAt DateTime        @default(now())
+
+  itensCotacao CotacaoItem[]
+}
+
+model Cotacao {
+  id        String          @id @default(cuid())
+  titulo    String
+  ativa     Boolean         @default(true)
+  createdAt DateTime        @default(now())
+
+  itens     CotacaoItem[]
+  respostas RespostaFornecedor[]
+}
+
+model CotacaoItem {
+  id         String          @id @default(cuid())
+  cotacaoId  String
+  produtoId  String
+  quantidade Float
+
+  cotacao    Cotacao         @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  produto    Produto         @relation(fields: [produtoId], references: [id])
+
+  respostasItem RespostaItem[]
+}
+
+model RespostaFornecedor {
+  id                 String          @id @default(cuid())
+  cotacaoId          String
+  nomeFornecedor     String
+  prazoEntrega       String?
+  condicaoPagamento  String?
+  descontoGlobal     Float?          @default(0) // Desconto total oferecido se comprar tudo
+  createdAt          DateTime        @default(now())
+
+  cotacao            Cotacao         @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  itens              RespostaItem[]
+}
+
+model RespostaItem {
+  id                   String              @id @default(cuid())
+  respostaFornecedorId String
+  cotacaoItemId        String
+  marca                String?
+  precoUnitario        Float?
+  descontoItem         Float?              @default(0)
+
+  respostaFornecedor   RespostaFornecedor  @relation(fields: [respostaFornecedorId], references: [id], onDelete: Cascade)
+  cotacaoItem          CotacaoItem         @relation(fields: [cotacaoItemId], references: [id], onDelete: Cascade)
+}
