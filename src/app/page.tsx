@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import Link from "next/link";
-import { formatDistanceToNow } from "next/cache"; // Wait, format distance usually from date-fns, lets just do toLocaleDateString
 
 const prisma = new PrismaClient();
 
@@ -21,16 +20,16 @@ export default async function Home() {
           <h1>Dashboard de Cotações</h1>
           <p>Gerencie todas as suas solicitações de compra e analise as propostas.</p>
         </div>
-        <a href="/cotacoes/nova" className="btn">
+        <Link href="/cotacoes/nova" className="btn">
           + Nova Cotação
-        </a>
+        </Link>
       </div>
 
       <div className="grid-cols-2">
         {cotacoes.length === 0 ? (
           <div className="glass-panel" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "4rem" }}>
             <h2 style={{ color: "var(--text-secondary)" }}>Nenhuma cotação criada ainda.</h2>
-            <a href="/cotacoes/nova" className="btn mt-4">Criar Primeira Cotação</a>
+            <Link href="/cotacoes/nova" className="btn mt-4">Criar Primeira Cotação</Link>
           </div>
         ) : (
           cotacoes.map(cotacao => (
@@ -51,9 +50,9 @@ export default async function Home() {
                   <span style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>respostas recebidas</span>
                 </div>
                 
-                <a href={cotacao._count.respostas > 0 ? `/dashboard/${cotacao.id}` : `/cotacao/${cotacao.id}`} className="btn btn--outline">
+                <Link href={cotacao._count.respostas > 0 ? `/dashboard/${cotacao.id}` : `/cotacao/${cotacao.id}`} className="btn btn--outline">
                   {cotacao._count.respostas > 0 ? "Ver Análise" : "Gerenciar Link"}
-                </a>
+                </Link>
               </div>
             </div>
           ))
