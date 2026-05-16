@@ -145,7 +145,7 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
             <thead>
               <tr>
                 <th>Produto Solicitado</th>
-                <th style={{ width: "20%" }}>Marca Ofertada<br/><span style={{ fontSize: "0.75rem", fontWeight: "normal", color: "var(--text-secondary)" }}>(Se diferente da desejada)</span></th>
+                <th style={{ width: "20%" }}>Marca Ofertada</th>
                 <th style={{ width: "15%" }}>Preço Un. (R$)</th>
                 <th style={{ width: "15%" }}>Desconto Item (R$)</th>
               </tr>

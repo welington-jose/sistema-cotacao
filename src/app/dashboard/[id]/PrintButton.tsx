@@ -7,7 +7,7 @@ export default function PrintButton() {
       className="btn btn--outline" 
       style={{ marginRight: "1rem" }}
     >
-      🖨️ Imprimir Resumo
+      📄 Baixar PDF
     </button>
   );
 }
