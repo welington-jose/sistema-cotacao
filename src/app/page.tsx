@@ -1,10 +1,29 @@
 import { PrismaClient } from "@prisma/client";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 export default async function Home() {
+  const session = await getServerSession(authOptions);
+  
+  let userName = "Usuário";
+  let userId = "";
+
+  if (session?.user?.email) {
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, nomeEmpresa: true, name: true }
+    });
+    if (user) {
+      userName = user.nomeEmpresa || user.name || "Usuário";
+      userId = user.id;
+    }
+  }
+
   const cotacoes = await prisma.cotacao.findMany({
+    where: { userId: userId },
     orderBy: { createdAt: "desc" },
     include: {
       _count: {
@@ -17,7 +36,7 @@ export default async function Home() {
     <div className="container animate-fade-in">
       <div className="flex-between mb-8">
         <div>
-          <h1>Dashboard de Cotações</h1>
+          <h1>Bem-vindo, {userName}</h1>
           <p>Gerencie todas as suas solicitações de compra e analise as propostas.</p>
         </div>
         <Link href="/cotacoes/nova" className="btn">

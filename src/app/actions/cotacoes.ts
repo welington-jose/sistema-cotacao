@@ -3,21 +3,30 @@
 import { revalidatePath } from "next/cache";
 import { PrismaClient } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
-export async function createCotacao(data: { titulo: string, itens: { produtoId: string, quantidade: number }[] }) {
+export async function createCotacao(data: { titulo: string, itens: { produtoId: string, quantidade: number, marca?: string }[] }) {
   if (!data.titulo || data.itens.length === 0) {
     throw new Error("Título e itens são obrigatórios");
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Não autorizado");
   }
 
   const cotacao = await prisma.cotacao.create({
     data: {
       titulo: data.titulo,
+      userId: session.user.id,
       itens: {
         create: data.itens.map(item => ({
           produtoId: item.produtoId,
-          quantidade: item.quantidade
+          quantidade: item.quantidade,
+          marca: item.marca
         }))
       }
     }
@@ -38,7 +47,18 @@ export async function finishCotacao(id: string) {
 }
 
 // Para o Fornecedor responder a cotação
-export async function submitFornecedorResposta(cotacaoId: string, data: any) {
+export async function submitFornecedorResposta(cotacaoId: string, data: {
+  nomeFornecedor: string;
+  prazoEntrega?: string;
+  condicaoPagamento?: string;
+  descontoGlobal?: string | number;
+  itens: Array<{
+    cotacaoItemId: string;
+    marca?: string;
+    precoUnitario?: string | number;
+    descontoItem?: string | number;
+  }>
+}) {
   const { nomeFornecedor, prazoEntrega, condicaoPagamento, descontoGlobal, itens } = data;
 
   await prisma.respostaFornecedor.create({
@@ -47,13 +67,13 @@ export async function submitFornecedorResposta(cotacaoId: string, data: any) {
       nomeFornecedor,
       prazoEntrega,
       condicaoPagamento,
-      descontoGlobal: parseFloat(descontoGlobal) || 0,
+      descontoGlobal: typeof descontoGlobal === 'string' ? parseFloat(descontoGlobal) : (descontoGlobal || 0),
       itens: {
-        create: itens.map((item: any) => ({
+        create: itens.map((item) => ({
           cotacaoItemId: item.cotacaoItemId,
           marca: item.marca,
-          precoUnitario: parseFloat(item.precoUnitario) || 0,
-          descontoItem: parseFloat(item.descontoItem) || 0
+          precoUnitario: typeof item.precoUnitario === 'string' ? parseFloat(item.precoUnitario) : (item.precoUnitario || 0),
+          descontoItem: typeof item.descontoItem === 'string' ? parseFloat(item.descontoItem) : (item.descontoItem || 0)
         }))
       }
     }

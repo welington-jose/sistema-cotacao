@@ -15,6 +15,9 @@ export default async function ShareCotacaoPage({
     include: {
       itens: {
         include: { produto: true }
+      },
+      user: {
+        select: { logoBase64: true, nomeEmpresa: true }
       }
     }
   });
@@ -39,6 +42,17 @@ export default async function ShareCotacaoPage({
   return (
     <div className="container animate-fade-in">
       <div className="mb-8" style={{ textAlign: "center" }}>
+        {cotacao.user?.logoBase64 ? (
+          <img 
+            src={cotacao.user.logoBase64} 
+            alt={cotacao.user.nomeEmpresa || "Logomarca da Empresa"} 
+            style={{ maxHeight: "80px", marginBottom: "1rem", objectFit: "contain" }} 
+          />
+        ) : (
+          <h2 style={{ color: "var(--color-brand-600)", marginBottom: "1rem" }}>
+            {cotacao.user?.nomeEmpresa || "Portal do Fornecedor"}
+          </h2>
+        )}
         <h1>{cotacao.titulo}</h1>
         <p>Preencha os valores abaixo para submeter sua proposta de fornecimento.</p>
       </div>

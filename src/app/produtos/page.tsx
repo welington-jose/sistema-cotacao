@@ -38,7 +38,7 @@ export default async function ProdutosPage() {
                   <option value="cx">Caixa (cx)</option>
                   <option value="m2">Metro Quadrado (m²)</option>
                   <option value="m3">Metro Cúbico (m³)</option>
-                  <option value="l">Litro (l)</option>
+                  <option value="l">Litro (lt)</option>
                   <option value="pct">Pacote (pct)</option>
                 </select>
               </div>

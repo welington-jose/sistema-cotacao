@@ -14,6 +14,7 @@ type ItemCotacao = {
   nome: string;
   quantidade: number;
   unidade: string;
+  marca?: string;
 };
 
 export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) {
@@ -21,6 +22,7 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
   const [itens, setItens] = useState<ItemCotacao[]>([]);
   const [selectedProduto, setSelectedProduto] = useState("");
   const [quantidade, setQuantidade] = useState("");
+  const [marcaDesejada, setMarcaDesejada] = useState("");
 
   const handleAddItem = () => {
     if (!selectedProduto || !quantidade || parseFloat(quantidade) <= 0) return;
@@ -38,11 +40,13 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
       produtoId: prod.id,
       nome: prod.nome,
       unidade: prod.unidade || 'un',
-      quantidade: parseFloat(quantidade)
+      quantidade: parseFloat(quantidade),
+      marca: marcaDesejada || undefined
     }]);
 
     setSelectedProduto("");
     setQuantidade("");
+    setMarcaDesejada("");
   };
 
   const handleRemoveItem = (id: string) => {
@@ -57,7 +61,7 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
     
     await createCotacao({
       titulo,
-      itens: itens.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade }))
+      itens: itens.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade, marca: i.marca }))
     });
   };
 
@@ -104,6 +108,17 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
             />
           </div>
 
+          <div className="input-group">
+            <label className="input-label">Marca Desejada (Opcional)</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Ex: Tigre, Amanco" 
+              value={marcaDesejada}
+              onChange={(e) => setMarcaDesejada(e.target.value)}
+            />
+          </div>
+
           <button onClick={handleAddItem} className="btn btn--outline mt-2 w-full">
             + Adicionar à Lista
           </button>
@@ -119,6 +134,7 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
               <thead>
                 <tr>
                   <th>Produto</th>
+                  <th>Marca</th>
                   <th>Qtd</th>
                   <th>Ações</th>
                 </tr>
@@ -132,6 +148,7 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
                   itens.map(item => (
                     <tr key={item.produtoId}>
                       <td>{item.nome}</td>
+                      <td>{item.marca || '-'}</td>
                       <td>{item.quantidade} <span className="badge">{item.unidade}</span></td>
                       <td>
                         <button 

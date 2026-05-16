@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -19,6 +19,9 @@ model Produto {
   descricao String?
   unidade   String?         @default("un") // e.g. cx, kg, un
   createdAt DateTime        @default(now())
+  
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   itensCotacao CotacaoItem[]
 }
@@ -29,6 +32,9 @@ model Cotacao {
   ativa     Boolean         @default(true)
   createdAt DateTime        @default(now())
 
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   itens     CotacaoItem[]
   respostas RespostaFornecedor[]
 }
@@ -38,6 +44,7 @@ model CotacaoItem {
   cotacaoId  String
   produtoId  String
   quantidade Float
+  marca      String?
 
   cotacao    Cotacao         @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
   produto    Produto         @relation(fields: [produtoId], references: [id])
@@ -68,4 +75,80 @@ model RespostaItem {
 
   respostaFornecedor   RespostaFornecedor  @relation(fields: [respostaFornecedorId], references: [id], onDelete: Cascade)
   cotacaoItem          CotacaoItem         @relation(fields: [cotacaoItemId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// NextAuth & SaaS Models
+// ==========================================
+
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?   // Para login com email/senha
+
+  // SaaS Fields
+  createdAt        DateTime  @default(now())
+  trialEndsAt      DateTime? // Configurado ao criar a conta
+  isSubscribed     Boolean   @default(false)
+  stripeCustomerId String?   @unique
+
+  // B2B Fields
+  documento        String?   @unique // CNPJ ou CPF
+  telefone         String?
+  nomeEmpresa      String?
+  logoBase64       String?   // Base64 encoded logo image
+
+  accounts         Account[]
+  sessions         Session[]
+  produtos         Produto[]
+  cotacoes         Cotacao[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? 
+  access_token      String? 
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? 
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  type      String   // "REGISTER" ou "RESET_PASSWORD"
+  createdAt DateTime @default(now())
+
+  @@unique([email, code])
 }

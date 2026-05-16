@@ -49,6 +49,7 @@ export default async function CotacaoAdminPage({
                 <thead>
                   <tr>
                     <th>Produto</th>
+                    <th>Marca</th>
                     <th>Quantidade</th>
                   </tr>
                 </thead>
@@ -56,6 +57,7 @@ export default async function CotacaoAdminPage({
                   {cotacao.itens.map(item => (
                     <tr key={item.id}>
                       <td>{item.produto.nome}</td>
+                      <td>{item.marca || '-'}</td>
                       <td>{item.quantidade} <span className="badge">{item.produto.unidade}</span></td>
                     </tr>
                   ))}

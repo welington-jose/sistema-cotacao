@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { finishCotacao } from "../../actions/cotacoes";
+import PrintButton from "./PrintButton";
 
 const prisma = new PrismaClient();
 
@@ -28,16 +29,18 @@ export default async function DashboardCotacaoPage({
 
   // --- Lógica de Resumo dos Menores Preços ---
   // Para cada item da cotação, queremos encontrar o fornecedor que ofereceu o menor preço final
+  type MelhorOfertaType = {
+    fornecedor: string;
+    marca: string | null;
+    precoBruto: number;
+    desconto: number;
+    precoFinal: number;
+    prazo: string | null;
+    condicao: string | null;
+  };
+
   const resumosItens = cotacao.itens.map(itemSolicitado => {
-    let melhorOferta: {
-      fornecedor: string;
-      marca: string | null;
-      precoBruto: number;
-      desconto: number;
-      precoFinal: number;
-      prazo: string | null;
-      condicao: string | null;
-    } | null = null;
+    let melhorOferta: MelhorOfertaType | null = null;
     let menorPreco = Infinity;
 
     cotacao.respostas.forEach(respostaFornecedor => {
@@ -67,7 +70,8 @@ export default async function DashboardCotacaoPage({
     return {
       produto: itemSolicitado.produto,
       quantidade: itemSolicitado.quantidade,
-      melhorOferta: melhorOferta as any
+      marca: itemSolicitado.marca,
+      melhorOferta: melhorOferta as MelhorOfertaType | null
     };
   });
 
@@ -75,18 +79,22 @@ export default async function DashboardCotacaoPage({
     <div className="container animate-fade-in">
       <div className="flex-between mb-8">
         <div>
-          <h1>Parametrização: {cotacao.titulo}</h1>
+          <h1>Cotação: {cotacao.titulo}</h1>
           <p>Análise comparativa das respostas cadastradas pelos {cotacao.respostas.length} fornecedores.</p>
         </div>
         
-        {cotacao.ativa && (
-          <form action={async () => {
-            "use server";
-            await finishCotacao(cotacao.id);
-          }}>
-            <button type="submit" className="btn btn--danger">Finalizar Cotação (Fechar Link)</button>
-          </form>
-        )}
+        <div className="no-print" style={{ display: "flex", gap: "1rem" }}>
+          <PrintButton />
+          
+          {cotacao.ativa && (
+            <form action={async () => {
+              "use server";
+              await finishCotacao(cotacao.id);
+            }}>
+              <button type="submit" className="btn btn--danger">Finalizar Cotação (Fechar Link)</button>
+            </form>
+          )}
+        </div>
       </div>
 
       <div className="glass-panel mb-8">
@@ -107,7 +115,10 @@ export default async function DashboardCotacaoPage({
             <tbody>
               {resumosItens.map((resumo, idx) => (
                 <tr key={idx}>
-                  <td style={{ fontWeight: 500 }}>{resumo.produto.nome}</td>
+                  <td>
+                    <span style={{ fontWeight: 500 }}>{resumo.produto.nome}</span>
+                    {resumo.marca && <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Marca desejada: {resumo.marca}</div>}
+                  </td>
                   <td>{resumo.quantidade} {resumo.produto.unidade}</td>
                   
                   {resumo.melhorOferta ? (
@@ -144,10 +155,10 @@ export default async function DashboardCotacaoPage({
         </div>
       </div>
 
-      <div className="glass-panel">
+      <div className="glass-panel print-matrix-panel">
         <h2>📊 Tabela Completa (Por Fornecedor)</h2>
-        <div style={{ overflowX: "auto", paddingBottom: "1rem" }} className="mt-4">
-          <table className="data-table" style={{ minWidth: "1200px" }}>
+        <div style={{ overflowX: "auto", paddingBottom: "1rem" }} className="mt-4 table-wrapper-print">
+          <table className="data-table matrix-table">
             <thead>
               <tr>
                 <th style={{ position: "sticky", left: 0, backgroundColor: "var(--bg-primary)", zIndex: 1, borderRight: "2px solid var(--border-color)" }}>
@@ -175,6 +186,7 @@ export default async function DashboardCotacaoPage({
                   <td style={{ position: "sticky", left: 0, backgroundColor: "var(--bg-surface)", zIndex: 1, borderRight: "2px solid var(--border-color)" }}>
                     <div style={{ fontWeight: 500 }}>{itemS.produto.nome}</div>
                     <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{itemS.quantidade} {itemS.produto.unidade}</div>
+                    {itemS.marca && <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Desejada: {itemS.marca}</div>}
                   </td>
                   {cotacao.respostas.map(fornecedor => {
                     const respItem = fornecedor.itens.find(i => i.cotacaoItemId === itemS.id);

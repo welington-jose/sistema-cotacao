@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { PrismaClient } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
@@ -14,11 +16,17 @@ export async function createProduto(data: FormData) {
     throw new Error("Nome e unidade são obrigatórios");
   }
 
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Não autorizado");
+  }
+
   await prisma.produto.create({
     data: {
       nome,
       descricao: descricao || null,
       unidade,
+      userId: session.user.id,
     },
   });
 

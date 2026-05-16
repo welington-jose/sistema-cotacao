@@ -220,6 +220,8 @@ p {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 
 .grid-cols-2 {
@@ -288,4 +290,133 @@ p {
   font-weight: 600;
   background-color: var(--color-brand-100);
   color: var(--color-brand-900);
+}
+
+/* ==========================================
+   Responsive Styles (Mobile & Tablet)
+   ========================================== */
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    gap: var(--space-4);
+    text-align: center;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+
+  .container {
+    padding: var(--space-4);
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  /* Make flex-between stack on mobile, except when explicitly prevented */
+  .flex-between {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  /* Specifically for dashboard cards to keep title and badge inline */
+  .glass-panel .flex-between {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .glass-panel {
+    padding: var(--space-4);
+  }
+}
+
+/* Tables specific classes */
+.matrix-table {
+  min-width: 1200px;
+}
+
+/* ==========================================
+   Print Styles
+   ========================================== */
+@media print {
+  @page {
+    size: portrait;
+    margin: 1cm;
+  }
+  
+  body {
+    background-color: #fff;
+    color: #000;
+  }
+  
+  /* Esconder elementos que não devem ser impressos */
+  header, nav, .btn, form, .no-print {
+    display: none !important;
+  }
+
+  /* Remover fundos para economizar tinta */
+  .glass-panel {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 2rem !important;
+  }
+
+  .container {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Reduzir agressivamente a tabela para caber no retrato */
+  .matrix-table {
+    min-width: auto !important;
+    width: 100% !important;
+    table-layout: fixed;
+    word-wrap: break-word;
+  }
+
+  .matrix-table th, .matrix-table td {
+    padding: 0.2rem !important;
+    font-size: 0.55rem !important;
+    overflow: hidden;
+  }
+
+  .data-table th {
+    background-color: #f1f5f9 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 0.75rem !important;
+    padding: 0.4rem !important;
+  }
+
+  .data-table td {
+    border: 1px solid #ddd !important;
+    padding: 0.4rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Evitar quebra de página no meio de linhas */
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1, h2 {
+    color: #000 !important;
+    page-break-after: avoid;
+  }
+
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.2rem !important; margin-top: 1.5rem !important; }
 }
