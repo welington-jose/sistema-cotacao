@@ -112,35 +112,29 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
               backgroundColor: "var(--bg-surface)",
             }}
           >
-            {filteredProdutos.length === 0 ? (
-              <div style={{ padding: "1rem", color: "var(--text-secondary)", textAlign: "center" }}>
-                Nenhum produto encontrado.
-              </div>
-            ) : (
-              filteredProdutos.map((produto) => (
-                <button
-                  key={produto.id}
-                  type="button"
-                  onClick={() => setSelectedProduto(produto.id)}
-                  className="product-list-item"
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "0.85rem 1rem",
-                    border: "1px solid var(--border-color)",
-                    borderRadius: "0.75rem",
-                    marginBottom: "0.5rem",
-                    background: selectedProduto === produto.id ? "var(--bg-muted)" : "transparent",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong>{produto.nome}</strong>
-                    <span className="badge">{produto.unidade || "un"}</span>
-                  </div>
-                </button>
-              ))
-            )}
+            {filteredProdutos.map((produto) => (
+              <button
+                key={produto.id}
+                type="button"
+                onClick={() => setSelectedProduto(produto.id)}
+                className="product-list-item"
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "0.85rem 1rem",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "0.75rem",
+                  marginBottom: "0.5rem",
+                  background: selectedProduto === produto.id ? "var(--bg-muted)" : "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong>{produto.nome}</strong>
+                  <span className="badge">{produto.unidade || "un"}</span>
+                </div>
+              </button>
+            ))}
           </div>
 
           <div className="input-group">

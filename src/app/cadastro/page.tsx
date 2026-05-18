@@ -174,6 +174,9 @@ export default function CadastroPage() {
             <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
               Se já tiver cadastro com este e-mail, escolha a mesma conta do Google ou acesse o login.
             </p>
+            <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+              Caso já exista cadastro com este e-mail, use o login para acessar a conta já criada.
+            </p>
             <p style={{ fontSize: "0.875rem" }}>
               Já tem uma conta? <Link href="/login" style={{ color: "var(--color-brand-600)", fontWeight: "bold", textDecoration: "none" }}>Faça login</Link>
             </p>
