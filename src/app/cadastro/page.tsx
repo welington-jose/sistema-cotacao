@@ -168,9 +168,12 @@ export default function CadastroPage() {
 
         {step === 1 && (
           <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem", textAlign: "center" }}>
-            <button onClick={() => signIn("google", { callbackUrl: "/" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
+            <button onClick={() => signIn("google", { callbackUrl: "/", prompt: "select_account" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
               Cadastrar com Google
             </button>
+            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+              Se já tiver cadastro com este e-mail, escolha a mesma conta do Google ou acesse o login.
+            </p>
             <p style={{ fontSize: "0.875rem" }}>
               Já tem uma conta? <Link href="/login" style={{ color: "var(--color-brand-600)", fontWeight: "bold", textDecoration: "none" }}>Faça login</Link>
             </p>

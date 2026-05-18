@@ -34,9 +34,18 @@ export async function createProduto(data: FormData) {
 }
 
 export async function deleteProduto(id: string) {
-  await prisma.produto.delete({
-    where: { id },
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Não autorizado");
+  }
+
+  const deleted = await prisma.produto.deleteMany({
+    where: { id, userId: session.user.id },
   });
+
+  if (deleted.count === 0) {
+    throw new Error("Produto não encontrado ou não pertence ao usuário");
+  }
 
   revalidatePath("/produtos");
 }

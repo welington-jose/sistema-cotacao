@@ -16,6 +16,16 @@ export async function POST(req: Request) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos de validade
 
+    if (type === 'REGISTER') {
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (existingUser) {
+        return NextResponse.json({ error: 'Já existe um cadastro com este e-mail. Faça login.' }, { status: 400 });
+      }
+    }
+
     // Apaga códigos antigos desse e-mail/tipo
     await prisma.verificationCode.deleteMany({
       where: { email, type }

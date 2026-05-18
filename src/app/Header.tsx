@@ -1,11 +1,14 @@
 "use client";
 
+import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 
 export default function Header() {
   const pathname = usePathname();
-  
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
+
   if (pathname?.startsWith("/share")) {
     return (
       <header className="app-header" style={{ justifyContent: 'center' }}>
@@ -31,11 +34,16 @@ export default function Header() {
         </svg>
         Cotações
       </Link>
-      <nav className="nav-links">
-        <Link href="/">Dashboard</Link>
-        <Link href="/produtos">Produtos</Link>
-        <Link href="/configuracoes">Configurações</Link>
-      </nav>
+      {isAuthenticated && (
+        <nav className="nav-links">
+          <Link href="/">Dashboard</Link>
+          <Link href="/produtos">Produtos</Link>
+          <Link href="/configuracoes">Configurações</Link>
+          <button type="button" className="btn btn--outline" style={{ marginLeft: "1rem" }} onClick={() => signOut({ callbackUrl: "/login" })}>
+            Sair
+          </button>
+        </nav>
+      )}
     </header>
   );
 }

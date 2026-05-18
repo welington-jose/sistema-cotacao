@@ -66,7 +66,7 @@ export default function LoginPage() {
         </form>
 
         <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem", textAlign: "center" }}>
-          <button onClick={() => signIn("google", { callbackUrl: "/" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
+          <button onClick={() => signIn("google", { callbackUrl: "/", prompt: "select_account" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
             Entrar com Google
           </button>
           <p style={{ fontSize: "0.875rem" }}>
