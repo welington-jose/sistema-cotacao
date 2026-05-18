@@ -14,7 +14,15 @@ export default async function NovaCotacaoPage() {
 
   const produtos = await prisma.produto.findMany({
     where: { userId: session.user.id },
-    orderBy: { nome: "asc" }
+    orderBy: [
+      { itensCotacao: { _count: "desc" } },
+      { nome: "asc" }
+    ],
+    include: {
+      _count: {
+        select: { itensCotacao: true }
+      }
+    }
   });
 
   return (

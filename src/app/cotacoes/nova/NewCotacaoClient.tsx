@@ -7,6 +7,9 @@ type Produto = {
   id: string;
   nome: string;
   unidade: string | null;
+  _count: {
+    itensCotacao: number;
+  };
 };
 
 type ItemCotacao = {
@@ -28,6 +31,19 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
   const filteredProdutos = useMemo(
     () => produtos.filter((produto) => produto.nome.toLowerCase().includes(searchQuery.toLowerCase())),
     [produtos, searchQuery]
+  );
+
+  const visibleProdutos = useMemo(
+    () => {
+      const sorted = filteredProdutos.slice().sort((a, b) => {
+        if (a._count.itensCotacao === b._count.itensCotacao) {
+          return a.nome.localeCompare(b.nome);
+        }
+        return b._count.itensCotacao - a._count.itensCotacao;
+      });
+      return searchQuery.trim() ? sorted : sorted.slice(0, 4);
+    },
+    [filteredProdutos, searchQuery]
   );
 
   const handleAddItem = () => {
@@ -90,6 +106,9 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
           </div>
 
           <h2 className="mt-8">2. Adicionar Itens</h2>
+          <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+            Mostramos os 4 produtos mais usados. Use a busca para procurar outros produtos cadastrados.
+          </p>
           <div className="input-group mt-4">
             <label className="input-label">Buscar produtos</label>
             <input
@@ -112,7 +131,7 @@ export default function NewCotacaoClient({ produtos }: { produtos: Produto[] }) 
               backgroundColor: "var(--bg-surface)",
             }}
           >
-            {filteredProdutos.map((produto) => (
+            {visibleProdutos.map((produto) => (
               <button
                 key={produto.id}
                 type="button"
