@@ -51,7 +51,7 @@ export async function deleteProduto(id: string) {
   });
 
   if (deleted.count === 0) {
-    throw new Error("Produto não encontrado ou não pertence ao usuário");
+    throw new Error("Produto não encontrado");
   }
 
   revalidatePath("/produtos");
