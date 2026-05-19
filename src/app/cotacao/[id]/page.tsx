@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { formatCotacaoNumero } from "@/lib/format";
 import CopyLinkButton from "./CopyLinkButton";
 
 const prisma = new PrismaClient();
@@ -28,6 +29,9 @@ export default async function CotacaoAdminPage({
     <div className="container animate-fade-in">
       <div className="flex-between mb-8">
         <div>
+          <p style={{ fontWeight: 700, color: "var(--color-brand-600)" }}>
+            Cotação Nº {formatCotacaoNumero(cotacao.numero)}
+          </p>
           <h1>{cotacao.titulo}</h1>
           <p>Criada em {cotacao.createdAt.toLocaleDateString('pt-BR')}</p>
         </div>

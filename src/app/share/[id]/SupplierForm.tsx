@@ -17,12 +17,19 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
   const [cnpj, setCnpj] = useState("");
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
   const [nomeFornecedor, setNomeFornecedor] = useState("");
-  const [prazoEntrega, setPrazoEntrega] = useState("");
+  const [entregaImediata, setEntregaImediata] = useState(false);
+  const [prazoEntregaDias, setPrazoEntregaDias] = useState("");
   const [condicaoPagamento, setCondicaoPagamento] = useState("");
   const [descontoGlobal, setDescontoGlobal] = useState("");
   
   const [respostasItens, setRespostasItens] = useState<{
-    [key: string]: { precoUnitario: string, marca: string, descontoItem: string }
+    [key: string]: {
+      precoUnitario: string;
+      marca: string;
+      descontoItem: string;
+      atendeTotalPedido: boolean;
+      quantidadeDisponivel: string;
+    }
   }>({});
 
   const [submitted, setSubmitted] = useState(false);
@@ -58,8 +65,31 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
     setRespostasItens(prev => ({
       ...prev,
       [itemId]: {
-        ...prev[itemId] || { precoUnitario: "", marca: "", descontoItem: "" },
+        ...prev[itemId] || {
+          precoUnitario: "",
+          marca: "",
+          descontoItem: "",
+          atendeTotalPedido: true,
+          quantidadeDisponivel: "",
+        },
         [field]: value
+      }
+    }));
+  };
+
+  const handleItemStockToggle = (item: ItemCotacao, atendeTotalPedido: boolean) => {
+    setRespostasItens(prev => ({
+      ...prev,
+      [item.id]: {
+        ...prev[item.id] || {
+          precoUnitario: "",
+          marca: "",
+          descontoItem: "",
+          atendeTotalPedido: true,
+          quantidadeDisponivel: "",
+        },
+        atendeTotalPedido,
+        quantidadeDisponivel: atendeTotalPedido ? String(item.quantidade) : prev[item.id]?.quantidadeDisponivel || "",
       }
     }));
   };
@@ -71,16 +101,37 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
       return;
     }
 
+    if (!entregaImediata && (!prazoEntregaDias || parseFloat(prazoEntregaDias) < 0)) {
+      alert("Informe o prazo de entrega em dias ou marque entrega imediata.");
+      return;
+    }
+
+    const missingStock = itens.find((item) => {
+      const resposta = respostasItens[item.id];
+      return resposta?.atendeTotalPedido === false && !resposta.quantidadeDisponivel;
+    });
+
+    if (missingStock) {
+      alert(`Informe a quantidade em estoque para o item ${missingStock.produto.nome}.`);
+      return;
+    }
+
     const payloadItens = itens.map(item => ({
       cotacaoItemId: item.id,
       marca: respostasItens[item.id]?.marca || "",
       precoUnitario: respostasItens[item.id]?.precoUnitario || "0",
-      descontoItem: respostasItens[item.id]?.descontoItem || "0"
+      descontoItem: respostasItens[item.id]?.descontoItem || "0",
+      atendeTotalPedido: respostasItens[item.id]?.atendeTotalPedido ?? true,
+      quantidadeDisponivel:
+        respostasItens[item.id]?.atendeTotalPedido === false
+          ? respostasItens[item.id]?.quantidadeDisponivel || "0"
+          : String(item.quantidade)
     }));
 
     await submitFornecedorResposta(cotacaoId, {
       nomeFornecedor,
-      prazoEntrega,
+      prazoEntrega: entregaImediata ? "Imediata" : `${prazoEntregaDias} dia(s)`,
+      entregaImediata,
       condicaoPagamento,
       descontoGlobal,
       itens: payloadItens
@@ -122,7 +173,25 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
           </div>
           <div className="input-group">
             <label className="input-label">Prazo de Entrega</label>
-            <input type="text" className="input-field" value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)} placeholder="Ex: 5 dias úteis" />
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.35rem 0 0.5rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+              <input
+                type="checkbox"
+                checked={entregaImediata}
+                onChange={e => setEntregaImediata(e.target.checked)}
+              />
+              Entrega imediata
+            </label>
+            {!entregaImediata && (
+              <input
+                type="number"
+                min="0"
+                step="1"
+                className="input-field"
+                value={prazoEntregaDias}
+                onChange={e => setPrazoEntregaDias(e.target.value)}
+                placeholder="Quantidade de dias"
+              />
+            )}
           </div>
           <div className="input-group">
             <label className="input-label">Condição de Pagamento</label>
@@ -146,51 +215,78 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
               <tr>
                 <th>Produto Solicitado</th>
                 <th style={{ width: "20%" }}>Marca Ofertada</th>
+                <th style={{ width: "18%" }}>Estoque</th>
                 <th style={{ width: "15%" }}>Preço Un. (R$)</th>
                 <th style={{ width: "15%" }}>Desconto Item (R$)</th>
               </tr>
             </thead>
             <tbody>
-              {itens.map(item => (
-                <tr key={item.id}>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{item.produto.nome}</div>
-                    <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                      Qtd: {item.quantidade} {item.produto.unidade}
-                      {item.marca && <span style={{ marginLeft: "0.5rem", color: "var(--color-brand-600)" }}>(Desejada: {item.marca})</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      placeholder={item.marca ? `Ex: ${item.marca}` : "Sua marca"} 
-                      value={respostasItens[item.id]?.marca || ""}
-                      onChange={e => handleItemChange(item.id, "marca", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      className="input-field" 
-                      placeholder="0.00" 
-                      value={respostasItens[item.id]?.precoUnitario || ""}
-                      onChange={e => handleItemChange(item.id, "precoUnitario", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      className="input-field" 
-                      placeholder="0.00" 
-                      value={respostasItens[item.id]?.descontoItem || ""}
-                      onChange={e => handleItemChange(item.id, "descontoItem", e.target.value)}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {itens.map(item => {
+                const resposta = respostasItens[item.id];
+                const atendeTotalPedido = resposta?.atendeTotalPedido ?? true;
+
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{item.produto.nome}</div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        Qtd: {item.quantidade} {item.produto.unidade}
+                        {item.marca && <span style={{ marginLeft: "0.5rem", color: "var(--color-brand-600)" }}>(Desejada: {item.marca})</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder={item.marca ? `Ex: ${item.marca}` : "Sua marca"} 
+                        value={resposta?.marca || ""}
+                        onChange={e => handleItemChange(item.id, "marca", e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-secondary)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={atendeTotalPedido}
+                          onChange={e => handleItemStockToggle(item, e.target.checked)}
+                        />
+                        Total pedido
+                      </label>
+                      {!atendeTotalPedido && (
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="input-field"
+                          placeholder="Qtd em estoque"
+                          value={resposta?.quantidadeDisponivel || ""}
+                          onChange={e => handleItemChange(item.id, "quantidadeDisponivel", e.target.value)}
+                        />
+                      )}
+                    </td>
+                    <td>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="input-field" 
+                        placeholder="0.00" 
+                        value={resposta?.precoUnitario || ""}
+                        onChange={e => handleItemChange(item.id, "precoUnitario", e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="input-field" 
+                        placeholder="0.00" 
+                        value={resposta?.descontoItem || ""}
+                        onChange={e => handleItemChange(item.id, "descontoItem", e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

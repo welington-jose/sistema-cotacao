@@ -21,18 +21,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Código inválido ou expirado' }, { status: 400 });
     }
 
-    // 2. Checar se e-mail ou documento já existe
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { documento: documento ? documento : undefined } // Somente checa se o documento foi passado
-        ]
-      }
+    // 2. Checar se o e-mail já tem cadastro completo
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: 'Já existe um usuário com este e-mail ou documento' }, { status: 400 });
+      return NextResponse.json({ error: 'Já existe um usuário com este e-mail. Faça login.' }, { status: 400 });
+    }
+
+    if (documento) {
+      const existingDocument = await prisma.user.findFirst({
+        where: {
+          documento,
+        }
+      });
+
+      if (existingDocument) {
+        return NextResponse.json({ error: 'Já existe um usuário com este documento' }, { status: 400 });
+      }
     }
 
     // 3. Hash da senha

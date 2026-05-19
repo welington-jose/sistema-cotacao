@@ -1,16 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { googleError, googleErrorCode } = useMemo(() => {
+    const param = searchParams.get("error");
+
+    if (param === "google_account_not_found") {
+      return {
+        googleError: "E-mail não possui cadastro! Deseja cadastrar uma conta?",
+        googleErrorCode: param,
+      };
+    }
+
+    if (param === "google_email_not_found") {
+      return {
+        googleError: "Não foi possível obter o e-mail do Google. Tente novamente ou use login por e-mail.",
+        googleErrorCode: param,
+      };
+    }
+
+    if (param) {
+      return {
+        googleError: "Erro ao entrar com Google. Verifique seus dados e tente novamente.",
+        googleErrorCode: param,
+      };
+    }
+
+    return { googleError: "", googleErrorCode: "" };
+  }, [searchParams]);
+  const displayError = error || googleError;
+  const isGoogleAccountNotFound = googleErrorCode === "google_account_not_found";
+
+  const handleGoogleLogin = async () => {
+    await fetch("/api/auth/google-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent: "login" }),
+    });
+
+    signIn("google", { callbackUrl: "/" }, { prompt: "select_account" });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,9 +79,14 @@ export default function LoginPage() {
           <p>Insira suas credenciais corporativas</p>
         </div>
 
-        {error && (
+        {displayError && (
           <div style={{ backgroundColor: "var(--color-error)", color: "white", padding: "0.75rem", borderRadius: "0.5rem", marginBottom: "1rem", fontSize: "0.875rem" }}>
-            {error}
+            {displayError}
+            {isGoogleAccountNotFound && (
+              <div style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+                <Link href="/cadastro" style={{ color: "white", fontWeight: "bold", textDecoration: "underline" }}>Cadastrar uma conta</Link>
+              </div>
+            )}
           </div>
         )}
 
@@ -66,7 +110,7 @@ export default function LoginPage() {
         </form>
 
         <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem", textAlign: "center" }}>
-          <button onClick={() => signIn("google", { callbackUrl: "/", prompt: "select_account" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
+          <button onClick={handleGoogleLogin} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
             Entrar com Google
           </button>
           <p style={{ fontSize: "0.875rem" }}>
@@ -78,5 +122,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

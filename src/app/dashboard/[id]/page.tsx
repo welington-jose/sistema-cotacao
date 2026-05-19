@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { formatCotacaoNumero } from "@/lib/format";
 import { finishCotacao } from "../../actions/cotacoes";
 import PrintButton from "./PrintButton";
 
@@ -36,7 +37,10 @@ export default async function DashboardCotacaoPage({
     desconto: number;
     precoFinal: number;
     prazo: string | null;
+    entregaImediata: boolean;
     condicao: string | null;
+    atendeTotalPedido: boolean;
+    quantidadeDisponivel: number | null;
   };
 
   const resumosItens = cotacao.itens.map(itemSolicitado => {
@@ -61,7 +65,10 @@ export default async function DashboardCotacaoPage({
             desconto: descItem,
             precoFinal: precoFinal,
             prazo: respostaFornecedor.prazoEntrega,
-            condicao: respostaFornecedor.condicaoPagamento
+            entregaImediata: respostaFornecedor.entregaImediata,
+            condicao: respostaFornecedor.condicaoPagamento,
+            atendeTotalPedido: itemRespondido.atendeTotalPedido,
+            quantidadeDisponivel: itemRespondido.quantidadeDisponivel
           };
         }
       }
@@ -79,6 +86,9 @@ export default async function DashboardCotacaoPage({
     <div className="container animate-fade-in">
       <div className="flex-between mb-8">
         <div>
+          <p style={{ fontWeight: 700, color: "var(--color-brand-600)" }}>
+            Cotação Nº {formatCotacaoNumero(cotacao.numero)}
+          </p>
           <h1>Cotação: {cotacao.titulo}</h1>
           <p>Análise comparativa das respostas cadastradas pelos {cotacao.respostas.length} fornecedores.</p>
         </div>
@@ -107,7 +117,7 @@ export default async function DashboardCotacaoPage({
                 <th>Qtd</th>
                 <th>Fornecedor Vencedor</th>
                 <th>Marca Vencedora</th>
-                <th>Detalhes (Prazo/Pag.)</th>
+                <th>Detalhes (Prazo/Pag./Estoque)</th>
                 <th style={{ textAlign: "right" }}>Melhor Valor (Un)</th>
                 <th style={{ textAlign: "right" }}>Total Bruto</th>
               </tr>
@@ -125,9 +135,19 @@ export default async function DashboardCotacaoPage({
                     <>
                       <td style={{ color: "var(--color-brand-600)", fontWeight: "bold" }}>{resumo.melhorOferta.fornecedor}</td>
                       <td>{resumo.melhorOferta.marca || "-"}</td>
-                      <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                        Prazo: {resumo.melhorOferta.prazo || "-"} <br/>
-                        Pag: {resumo.melhorOferta.condicao || "-"}
+                          <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                        <div>Prazo: {resumo.melhorOferta.entregaImediata ? "Imediata" : resumo.melhorOferta.prazo || "-"}</div>
+                        <div>Pag: {resumo.melhorOferta.condicao || "-"}</div>
+                        <div>
+                          Estoque: {resumo.melhorOferta.atendeTotalPedido
+                            ? "Total pedido"
+                            : `${resumo.melhorOferta.quantidadeDisponivel ?? 0} ${resumo.produto.unidade}`}
+                        </div>
+                        {!resumo.melhorOferta.atendeTotalPedido && resumo.melhorOferta.quantidadeDisponivel !== null && resumo.melhorOferta.quantidadeDisponivel < resumo.quantidade && (
+                          <div style={{ marginTop: "0.5rem", color: "var(--color-error)", fontWeight: 700 }}>
+                            Estoque insuficiente
+                          </div>
+                        )}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         {resumo.melhorOferta.desconto > 0 && (
@@ -168,7 +188,7 @@ export default async function DashboardCotacaoPage({
                   <th key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)" }}>
                     <div style={{ fontSize: "1.1rem", color: "var(--color-brand-600)" }}>{fornecedor.nomeFornecedor}</div>
                     <div style={{ fontSize: "0.75rem", fontWeight: "normal", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                      Prazo: {fornecedor.prazoEntrega || "-"} | Pag: {fornecedor.condicaoPagamento || "-"}
+                      Prazo: {fornecedor.entregaImediata ? "Imediata" : fornecedor.prazoEntrega || "-"} | Pag: {fornecedor.condicaoPagamento || "-"}
                       <br/>
                       {fornecedor.descontoGlobal && fornecedor.descontoGlobal > 0 ? (
                         <span style={{ color: "var(--color-success)", fontWeight: "bold" }}>
@@ -203,6 +223,15 @@ export default async function DashboardCotacaoPage({
                     return (
                       <td key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)" }}>
                         <div style={{ fontSize: "0.85rem" }}>Marca: {respItem.marca || "-"}</div>
+                        {(!respItem.atendeTotalPedido && typeof respItem.quantidadeDisponivel === "number" && respItem.quantidadeDisponivel < itemS.quantidade) ? (
+                          <div style={{ fontSize: "0.75rem", color: "var(--color-error)", marginTop: "0.25rem", fontWeight: 700 }}>
+                            Estoque insuficiente: {respItem.quantidadeDisponivel} {itemS.produto.unidade}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                            Estoque: {respItem.atendeTotalPedido ? "Total pedido" : `${respItem.quantidadeDisponivel ?? 0} ${itemS.produto.unidade}`}
+                          </div>
+                        )}
                         <div style={{ fontWeight: "bold", marginTop: "0.25rem" }}>
                           R$ {pFinal.toFixed(2)}
                         </div>

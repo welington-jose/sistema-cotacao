@@ -60,6 +60,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 main {
@@ -214,6 +215,7 @@ p {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--space-6);
+  width: 100%;
 }
 
 .flex-between {
@@ -226,13 +228,14 @@ p {
 
 .grid-cols-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: var(--space-6);
 }
 
 /* Tables */
 .table-wrapper {
   overflow-x: auto;
+  max-width: 100%;
   background-color: var(--bg-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -241,13 +244,20 @@ p {
 
 .data-table {
   width: 100%;
+  min-width: 0;
   border-collapse: collapse;
+}
+
+.data-table .input-field {
+  min-width: 0;
+  width: 100%;
 }
 
 .data-table th, .data-table td {
   padding: var(--space-3) var(--space-4);
   text-align: left;
   border-bottom: 1px solid var(--border-color);
+  white-space: normal;
 }
 
 .data-table th {
@@ -306,6 +316,11 @@ p {
     flex-wrap: wrap;
     justify-content: center;
     gap: var(--space-3);
+    width: 100%;
+  }
+
+  .nav-links .btn {
+    margin-left: 0 !important;
   }
 
   .container {
@@ -335,6 +350,56 @@ p {
 
   .glass-panel {
     padding: var(--space-4);
+  }
+
+  .table-wrapper {
+    border-radius: var(--radius-md);
+  }
+
+  .data-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .data-table th, .data-table td {
+    padding: var(--space-2);
+    white-space: normal;
+  }
+
+  [style*='minWidth: "180px"'],
+  [style*="min-width: 180px"],
+  [style*='minWidth: "300px"'],
+  [style*="min-width: 300px"] {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: var(--space-3);
+  }
+
+  .glass-panel {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: var(--space-4);
+  }
+
+  h2 {
+    font-size: 1.15rem;
+  }
+
+  .input-field {
+    font-size: 16px;
+  }
+
+  .data-table {
+    min-width: 0;
+    width: 100%;
   }
 }
 

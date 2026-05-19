@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { formatCotacaoNumero } from "@/lib/format";
 import SupplierForm from "./SupplierForm";
 
 const prisma = new PrismaClient();
@@ -49,6 +50,9 @@ export default async function ShareCotacaoPage({
             style={{ maxHeight: "80px", marginBottom: "1rem", objectFit: "contain" }} 
           />
         )}
+        <p style={{ fontWeight: 700, color: "var(--color-brand-600)" }}>
+          Cotação Nº {formatCotacaoNumero(cotacao.numero)}
+        </p>
         <h1 style={{ marginTop: cotacao.user?.logoBase64 ? '0' : '1rem' }}>{cotacao.titulo}</h1>
         <p>Preencha os valores abaixo para submeter sua proposta de fornecimento.</p>
       </div>

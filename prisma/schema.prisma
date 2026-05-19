@@ -28,6 +28,7 @@ model Produto {
 
 model Cotacao {
   id        String          @id @default(cuid())
+  numero    Int             @unique @default(autoincrement())
   titulo    String
   ativa     Boolean         @default(true)
   createdAt DateTime        @default(now())
@@ -57,6 +58,7 @@ model RespostaFornecedor {
   cotacaoId          String
   nomeFornecedor     String
   prazoEntrega       String?
+  entregaImediata    Boolean         @default(false)
   condicaoPagamento  String?
   descontoGlobal     Float?          @default(0) // Desconto total oferecido se comprar tudo
   createdAt          DateTime        @default(now())
@@ -72,6 +74,8 @@ model RespostaItem {
   marca                String?
   precoUnitario        Float?
   descontoItem         Float?              @default(0)
+  atendeTotalPedido    Boolean             @default(true)
+  quantidadeDisponivel Float?
 
   respostaFornecedor   RespostaFornecedor  @relation(fields: [respostaFornecedorId], references: [id], onDelete: Cascade)
   cotacaoItem          CotacaoItem         @relation(fields: [cotacaoItemId], references: [id], onDelete: Cascade)

@@ -6,8 +6,12 @@ import Link from "next/link";
 
 export default function Header() {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const isAuthenticated = status === "authenticated";
+
+  if (pathname === "/login" || pathname === "/cadastro") {
+    return null;
+  }
 
   if (pathname?.startsWith("/share")) {
     return (

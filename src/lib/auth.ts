@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 
 const prisma = new PrismaClient();
 
@@ -56,6 +57,32 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        const email = user?.email;
+        if (!email) {
+          return "/login?error=google_email_not_found";
+        }
+
+        const cookieStore = await cookies();
+        const intent = cookieStore.get("google_auth_intent")?.value ?? "login";
+        const existingUser = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (intent === "login" && !existingUser) {
+          return "/login?error=google_account_not_found";
+        }
+
+        if (intent === "register" && existingUser) {
+          return "/cadastro?error=google_account_already_exists";
+        }
+
+        return true;
+      }
+
+      return true;
+    },
     async session({ session, token }) {
       if (token && session.user) {
         // Injetar o ID do banco na sessão para usarmos depois
@@ -66,6 +93,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

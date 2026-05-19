@@ -1,24 +1,44 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 
-export default function CadastroPage() {
+function getRegistrationMessage(errorParam: string | null) {
+  if (errorParam === "google_account_already_exists") {
+    return "E-mail já cadastrado! Deseja fazer login?";
+  }
+
+  return "";
+}
+
+function CadastroContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => getRegistrationMessage(searchParams.get("error")));
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [documento, setDocumento] = useState("");
   const [telefone, setTelefone] = useState("");
   const [nomeEmpresa, setNomeEmpresa] = useState("");
+  const isGoogleAccountAlreadyExists = searchParams.get("error") === "google_account_already_exists";
+
+  const handleGoogleRegister = async () => {
+    await fetch("/api/auth/google-intent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent: "register" }),
+    });
+
+    signIn("google", { callbackUrl: "/" }, { prompt: "select_account" });
+  };
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +126,11 @@ export default function CadastroPage() {
         {error && (
           <div style={{ backgroundColor: "var(--color-error)", color: "white", padding: "0.75rem", borderRadius: "0.5rem", marginBottom: "1rem", fontSize: "0.875rem" }}>
             {error}
+            {isGoogleAccountAlreadyExists && (
+              <div style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
+                <Link href="/login" style={{ color: "white", fontWeight: "bold", textDecoration: "underline" }}>Fazer login</Link>
+              </div>
+            )}
           </div>
         )}
 
@@ -168,7 +193,7 @@ export default function CadastroPage() {
 
         {step === 1 && (
           <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem", textAlign: "center" }}>
-            <button onClick={() => signIn("google", { callbackUrl: "/", prompt: "select_account" })} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
+            <button onClick={handleGoogleRegister} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
               Cadastrar com Google
             </button>
             <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
@@ -184,5 +209,13 @@ export default function CadastroPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CadastroPage() {
+  return (
+    <Suspense fallback={null}>
+      <CadastroContent />
+    </Suspense>
   );
 }

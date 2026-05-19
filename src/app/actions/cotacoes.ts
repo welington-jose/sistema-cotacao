@@ -50,6 +50,7 @@ export async function finishCotacao(id: string) {
 export async function submitFornecedorResposta(cotacaoId: string, data: {
   nomeFornecedor: string;
   prazoEntrega?: string;
+  entregaImediata?: boolean;
   condicaoPagamento?: string;
   descontoGlobal?: string | number;
   itens: Array<{
@@ -57,15 +58,18 @@ export async function submitFornecedorResposta(cotacaoId: string, data: {
     marca?: string;
     precoUnitario?: string | number;
     descontoItem?: string | number;
+    atendeTotalPedido?: boolean;
+    quantidadeDisponivel?: string | number;
   }>
 }) {
-  const { nomeFornecedor, prazoEntrega, condicaoPagamento, descontoGlobal, itens } = data;
+  const { nomeFornecedor, prazoEntrega, entregaImediata, condicaoPagamento, descontoGlobal, itens } = data;
 
   await prisma.respostaFornecedor.create({
     data: {
       cotacaoId,
       nomeFornecedor,
       prazoEntrega,
+      entregaImediata: Boolean(entregaImediata),
       condicaoPagamento,
       descontoGlobal: typeof descontoGlobal === 'string' ? parseFloat(descontoGlobal) : (descontoGlobal || 0),
       itens: {
@@ -73,7 +77,12 @@ export async function submitFornecedorResposta(cotacaoId: string, data: {
           cotacaoItemId: item.cotacaoItemId,
           marca: item.marca,
           precoUnitario: typeof item.precoUnitario === 'string' ? parseFloat(item.precoUnitario) : (item.precoUnitario || 0),
-          descontoItem: typeof item.descontoItem === 'string' ? parseFloat(item.descontoItem) : (item.descontoItem || 0)
+          descontoItem: typeof item.descontoItem === 'string' ? parseFloat(item.descontoItem) : (item.descontoItem || 0),
+          atendeTotalPedido: item.atendeTotalPedido ?? true,
+          quantidadeDisponivel:
+            typeof item.quantidadeDisponivel === 'string'
+              ? parseFloat(item.quantidadeDisponivel)
+              : item.quantidadeDisponivel
         }))
       }
     }

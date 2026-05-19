@@ -1,16 +1,24 @@
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { createProduto, deleteProduto } from "../actions/produtos";
 
 const prisma = new PrismaClient();
 
-export default async function ProdutosPage() {
+type ProdutosPageProps = {
+  searchParams: Promise<{ from?: string | string[] }>;
+};
+
+export default async function ProdutosPage({ searchParams }: ProdutosPageProps) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     redirect("/login");
   }
+
+  const params = await searchParams;
+  const fromCotacao = params.from === "cotacao";
 
   const produtos = await prisma.produto.findMany({
     where: { userId: session.user.id },
@@ -21,7 +29,21 @@ export default async function ProdutosPage() {
     <div className="container animate-fade-in">
       <div className="flex-between mb-4">
         <h1>Catálogo de Produtos</h1>
+        {fromCotacao && (
+          <Link href="/cotacoes/nova" className="btn btn--outline">
+            Voltar para cotação
+          </Link>
+        )}
       </div>
+
+      {fromCotacao && (
+        <div className="glass-panel mb-4" style={{ borderColor: "var(--color-brand-100)" }}>
+          <strong>Cadastro rápido para a cotação</strong>
+          <p style={{ marginTop: "0.35rem" }}>
+            Ao cadastrar o produto, você volta para a nova cotação com o rascunho restaurado.
+          </p>
+        </div>
+      )}
 
       <div className="grid-cols-2">
         {/* Formulário de Cadastro */}
@@ -29,6 +51,7 @@ export default async function ProdutosPage() {
           <div className="glass-panel">
             <h2>Novo Produto</h2>
             <form action={createProduto} className="mt-4">
+              {fromCotacao && <input type="hidden" name="returnTo" value="/cotacoes/nova" />}
               <div className="input-group">
                 <label htmlFor="nome" className="input-label">Nome do Produto *</label>
                 <input type="text" id="nome" name="nome" required className="input-field" placeholder="Ex: Cimento CP-II" />

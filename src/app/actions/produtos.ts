@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 
 const prisma = new PrismaClient();
@@ -11,6 +12,7 @@ export async function createProduto(data: FormData) {
   const nome = data.get("nome") as string;
   const descricao = data.get("descricao") as string | null;
   const unidade = data.get("unidade") as string;
+  const returnTo = data.get("returnTo") as string | null;
 
   if (!nome || !unidade) {
     throw new Error("Nome e unidade são obrigatórios");
@@ -31,6 +33,11 @@ export async function createProduto(data: FormData) {
   });
 
   revalidatePath("/produtos");
+  revalidatePath("/cotacoes/nova");
+
+  if (returnTo === "/cotacoes/nova") {
+    redirect(returnTo);
+  }
 }
 
 export async function deleteProduto(id: string) {

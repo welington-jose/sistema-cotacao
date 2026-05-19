@@ -2,6 +2,8 @@ import { PrismaClient } from "@prisma/client";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { formatCotacaoNumero } from "@/lib/format";
+import CopyShareLinkButton from "./CopyShareLinkButton";
 
 const prisma = new PrismaClient();
 
@@ -54,7 +56,12 @@ export default async function Home() {
           cotacoes.map(cotacao => (
             <div key={cotacao.id} className="glass-panel" style={{ position: "relative" }}>
               <div className="flex-between">
-                <h3 style={{ fontSize: "1.25rem", marginRight: "1rem" }}>{cotacao.titulo}</h3>
+                <div style={{ marginRight: "1rem" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 700 }}>
+                    Cotação Nº {formatCotacaoNumero(cotacao.numero)}
+                  </div>
+                  <h3 style={{ fontSize: "1.25rem" }}>{cotacao.titulo}</h3>
+                </div>
                 {cotacao.ativa ? (
                   <span className="badge" style={{ backgroundColor: "var(--color-success)", color: "white" }}>Ativa</span>
                 ) : (
@@ -63,15 +70,18 @@ export default async function Home() {
               </div>
               <p className="mt-2 text-sm">Criada em {cotacao.createdAt.toLocaleDateString("pt-BR")}</p>
               
-              <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                 <div>
                   <span style={{ fontSize: "1.5rem", fontWeight: "bold", color: "var(--color-brand-600)" }}>{cotacao._count.respostas}</span>
                   <span style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>respostas recebidas</span>
                 </div>
                 
-                <Link href={cotacao._count.respostas > 0 ? `/dashboard/${cotacao.id}` : `/cotacao/${cotacao.id}`} className="btn btn--outline">
-                  {cotacao._count.respostas > 0 ? "Ver Análise" : "Gerenciar Link"}
-                </Link>
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                  {cotacao.ativa && <CopyShareLinkButton cotacaoId={cotacao.id} />}
+                  <Link href={cotacao._count.respostas > 0 ? `/dashboard/${cotacao.id}` : `/cotacao/${cotacao.id}`} className="btn btn--outline">
+                    {cotacao._count.respostas > 0 ? "Ver Análise" : "Gerenciar Link"}
+                  </Link>
+                </div>
               </div>
             </div>
           ))
