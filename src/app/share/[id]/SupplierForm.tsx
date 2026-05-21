@@ -198,7 +198,7 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
             <input type="text" className="input-field" value={condicaoPagamento} onChange={e => setCondicaoPagamento(e.target.value)} placeholder="Ex: 30/60 dias" />
           </div>
           <div className="input-group">
-            <label className="input-label">Desconto Global no Total Final (R$)</label>
+            <label className="input-label">Desconto Geral no Total Final (R$)</label>
             <input type="number" step="0.01" className="input-field" value={descontoGlobal} onChange={e => setDescontoGlobal(e.target.value)} placeholder="0.00" />
             <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Caso haja desconto no fechamento do pacote completo.</span>
           </div>
@@ -288,6 +288,33 @@ export default function SupplierForm({ cotacaoId, itens }: { cotacaoId: string, 
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: "var(--color-brand-50)", fontWeight: "bold" }}>
+                <td colSpan={4} style={{ textAlign: "right", paddingRight: "1rem", fontSize: "1.1rem" }}>
+                  Total Final da Proposta:
+                </td>
+                <td style={{ color: "var(--color-success)", fontSize: "1.2rem" }}>
+                  R$ {(() => {
+                    let soma = 0;
+                    itens.forEach(item => {
+                      const resposta = respostasItens[item.id];
+                      if (resposta && resposta.precoUnitario) {
+                        const precoUn = parseFloat(resposta.precoUnitario) || 0;
+                        const descItem = parseFloat(resposta.descontoItem) || 0;
+                        const pFinal = Math.max(0, precoUn - descItem);
+                        let qtd = item.quantidade;
+                        if (resposta.atendeTotalPedido === false && resposta.quantidadeDisponivel) {
+                          qtd = parseFloat(resposta.quantidadeDisponivel) || 0;
+                        }
+                        soma += pFinal * qtd;
+                      }
+                    });
+                    const descGlobalNum = parseFloat(descontoGlobal) || 0;
+                    return Math.max(0, soma - descGlobalNum);
+                  })().toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
