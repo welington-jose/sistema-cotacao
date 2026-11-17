@@ -1,47 +1,26 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+import { validarCodigo } from "@/lib/codigos";
 
 export async function POST(req: Request) {
   try {
-    const { email, code, newPassword } = await req.json();
+    const corpo = await req.json().catch(() => ({}));
+    const email = String(corpo.email || "").trim().toLowerCase();
+    const newPassword = String(corpo.newPassword || "");
 
-    if (!email || !code || !newPassword) {
-      return NextResponse.json({ error: 'E-mail, código e nova senha são obrigatórios' }, { status: 400 });
-    }
+    if (newPassword.length < 8) return NextResponse.json({ error: "A senha precisa ter pelo menos 8 caracteres." }, { status: 400 });
 
-    // 1. Validar código
-    const verification = await prisma.verificationCode.findFirst({
-      where: { email, code, type: 'RESET_PASSWORD' }
-    });
+    const codigo = await validarCodigo(email, String(corpo.code || ""), "RESET_PASSWORD", true);
+    if (!codigo.ok) return NextResponse.json({ error: codigo.erro }, { status: 400 });
 
-    if (!verification || new Date() > verification.expiresAt) {
-      return NextResponse.json({ error: 'Código inválido ou expirado' }, { status: 400 });
-    }
-
-    // 2. Encontrar o usuário
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
-    }
+    if (!user) return NextResponse.json({ error: "Conta não encontrada." }, { status: 404 });
 
-    // 3. Atualizar a senha
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { email },
-      data: { password: hashedPassword }
-    });
-
-    // 4. Apagar código
-    await prisma.verificationCode.delete({
-      where: { id: verification.id }
-    });
-
+    await prisma.user.update({ where: { email }, data: { password: await bcrypt.hash(newPassword, 10) } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Erro ao resetar senha:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    console.error("Erro ao trocar senha:", error);
+    return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
 }

@@ -1,101 +1,171 @@
-import { PrismaClient } from "@prisma/client";
-import { formatCotacaoNumero } from "@/lib/format";
-import CopyLinkButton from "./CopyLinkButton";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { exigirAcesso } from "@/lib/acesso";
+import { carregarCotacaoDoUsuario, analisarCotacao } from "@/lib/analise";
+import { formatCotacaoNumero, formatData, formatDataHora, formatMoeda, formatNumero } from "@/lib/format";
+import Icone from "@/components/Icone";
+import AcoesCotacao from "@/components/AcoesCotacao";
+import CompartilharCotacao from "./CopyLinkButton";
 
-const prisma = new PrismaClient();
+export const metadata = { title: "Cotação" };
 
-export default async function CotacaoAdminPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
+export default async function CotacaoAdminPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ nova?: string }>;
 }) {
   const { id } = await params;
-  
-  const cotacao = await prisma.cotacao.findUnique({
-    where: { id },
-    include: {
-      itens: {
-        include: { produto: true }
-      },
-      respostas: true
-    }
-  });
+  const { nova } = await searchParams;
+  const user = await exigirAcesso();
+  const cotacao = await carregarCotacaoDoUsuario(id, user.id);
+  if (!cotacao) notFound();
 
-  if (!cotacao) {
-    return <div className="container">Cotação não encontrada.</div>;
-  }
+  const analise = analisarCotacao(cotacao);
+  const numero = formatCotacaoNumero(cotacao.numero);
+  const empresa = user.nomeEmpresa || user.name || "nossa empresa";
 
   return (
     <div className="container animate-fade-in">
-      <div className="flex-between mb-8">
-        <div>
-          <p style={{ fontWeight: 700, color: "var(--color-brand-600)" }}>
-            Cotação Nº {formatCotacaoNumero(cotacao.numero)}
-          </p>
-          <h1>{cotacao.titulo}</h1>
-          <p>Criada em {cotacao.createdAt.toLocaleDateString('pt-BR')}</p>
-        </div>
-        <div>
-          {cotacao.ativa ? (
-            <span className="badge" style={{ backgroundColor: "var(--color-success)", color: "white" }}>Ativa</span>
-          ) : (
-            <span className="badge">Finalizada</span>
-          )}
-        </div>
+      <div className="breadcrumb">
+        <Link href="/">Cotações</Link> <span>/</span> <span>Nº {numero}</span>
       </div>
 
-      <div className="grid-cols-2">
+      {nova && (
+        <div className="alert alert--success mb-6">
+          <Icone nome="checkCirculo" />
+          <div>
+            <strong>Cotação criada!</strong>
+            Agora envie o link abaixo para os seus fornecedores pelo WhatsApp ou por e-mail.
+          </div>
+        </div>
+      )}
+
+      <div className="page-header">
         <div>
-          <div className="glass-panel mb-6">
-            <h2>Itens Solicitados</h2>
-            <div className="table-wrapper mt-4">
+          <div className="page-header__eyebrow">Cotação Nº {numero}</div>
+          <h1 className="page-header__title">{cotacao.titulo}</h1>
+          <div className="row mt-2">
+            {cotacao.ativa ? (
+              <span className="badge badge--success badge--dot">Recebendo propostas</span>
+            ) : (
+              <span className="badge badge--dot">Finalizada</span>
+            )}
+            <span className="text-sm text-muted">Criada em {formatData(cotacao.createdAt)}</span>
+            {cotacao.prazoResposta && <span className="text-sm text-muted">· Prazo até {formatData(cotacao.prazoResposta)}</span>}
+          </div>
+        </div>
+        <AcoesCotacao id={cotacao.id} ativa={cotacao.ativa} />
+      </div>
+
+      <div className="grid-main-aside">
+        <div className="stack">
+          <div className="card card--flush">
+            <div className="card__header card__header--bordered">
+              <div className="card__title">
+                <Icone nome="caixa" /> Itens solicitados
+              </div>
+              <span className="badge">{cotacao.itens.length}</span>
+            </div>
+            <div className="table-wrapper">
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>Produto</th>
-                    <th>Marca</th>
-                    <th>Quantidade</th>
+                    <th>Marca preferida</th>
+                    <th className="num">Quantidade</th>
+                    <th className="num">Melhor preço</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cotacao.itens.map(item => (
+                  {analise.itens.map(({ item, melhor }) => (
                     <tr key={item.id}>
-                      <td>{item.produto.nome}</td>
-                      <td>{item.marca || '-'}</td>
-                      <td>{item.quantidade} <span className="badge">{item.produto.unidade}</span></td>
+                      <td className="fw-600" style={{ color: "var(--text)" }}>{item.produto.nome}</td>
+                      <td className="muted">{item.marca || "—"}</td>
+                      <td className="num">
+                        {formatNumero(item.quantidade)} <span className="badge">{item.produto.unidade}</span>
+                      </td>
+                      <td className="num">{melhor ? <span className="price-best">{formatMoeda(melhor.precoFinal)}</span> : <span className="muted">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {cotacao.observacoes && (
+              <div className="card__footer text-sm">
+                <strong>Observações:</strong> {cotacao.observacoes}
+              </div>
+            )}
           </div>
 
-          <div className="glass-panel">
-            <h2>Status de Respostas</h2>
-            <p className="mt-2 text-center" style={{ fontSize: "2rem", fontWeight: "bold", color: "var(--color-brand-600)" }}>
-              {cotacao.respostas.length}
-            </p>
-            <p className="text-center">Fornecedores responderam</p>
-            
-            {cotacao.respostas.length > 0 && (
-              <a href={`/dashboard/${id}`} className="btn mt-4 w-full text-center">
-                Ver Tabela de Parametrização
-              </a>
+          <div className="card card--flush">
+            <div className="card__header card__header--bordered">
+              <div className="card__title">
+                <Icone nome="usuarios" /> Propostas recebidas
+              </div>
+              {cotacao.respostas.length > 0 && (
+                <Link href={`/dashboard/${cotacao.id}`} className="btn btn--sm">
+                  <Icone nome="grafico" tamanho={15} /> Ver comparativo
+                </Link>
+              )}
+            </div>
+            {cotacao.respostas.length === 0 ? (
+              <div className="empty-state" style={{ padding: "2.5rem 1.5rem" }}>
+                <div className="empty-state__icon">
+                  <Icone nome="relogio" tamanho={24} />
+                </div>
+                <h3>Aguardando propostas</h3>
+                <p>Assim que um fornecedor responder, ele aparece aqui e você recebe um aviso por e-mail.</p>
+              </div>
+            ) : (
+              <div className="list">
+                {analise.fornecedores.map((f) => (
+                  <div key={f.resposta.id} className="list-item">
+                    <span className="avatar">{f.resposta.nomeFornecedor.slice(0, 2).toUpperCase()}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="fw-700 truncate" style={{ color: "var(--text)" }}>{f.resposta.nomeFornecedor}</div>
+                      <div className="text-xs text-muted">
+                        {f.cotados} de {cotacao.itens.length} itens · enviada em {formatDataHora(f.resposta.createdAt)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="fw-700 tabular">{formatMoeda(f.total)}</div>
+                      {f.vitorias > 0 && <span className="badge badge--success">{f.vitorias} menor preço</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        <div>
-           {cotacao.ativa && (
-             <CopyLinkButton cotacaoId={cotacao.id} />
-           )}
-           
-           {!cotacao.ativa && (
-             <div className="glass-panel">
-                <h3>Esta cotação foi finalizada.</h3>
-                <p>Nenhum fornecedor novo poderá enviar respostas.</p>
-             </div>
-           )}
+        <div className="stack sticky-top">
+          {cotacao.ativa ? (
+            <CompartilharCotacao
+              cotacaoId={cotacao.id}
+              numero={numero}
+              titulo={cotacao.titulo}
+              empresa={empresa}
+              prazo={cotacao.prazoResposta ? formatData(cotacao.prazoResposta) : null}
+            />
+          ) : (
+            <div className="card card--muted">
+              <div className="card__title mb-2">
+                <Icone nome="cadeado" /> Cotação finalizada
+              </div>
+              <p className="text-sm">O link não aceita novas propostas. Use “Reabrir” se precisar receber mais.</p>
+            </div>
+          )}
+
+          <div className="card">
+            <div className="stat__label">Melhor combinação até agora</div>
+            <div className="stat__value">{formatMoeda(analise.melhorCombinacao)}</div>
+            {analise.economia > 0 && <div className="stat__hint text-success fw-600">Economia de {formatMoeda(analise.economia)}</div>}
+            {analise.itensSemOferta > 0 && cotacao.respostas.length > 0 && (
+              <div className="stat__hint text-warning">{analise.itensSemOferta} item(ns) ainda sem preço</div>
+            )}
+          </div>
         </div>
       </div>
     </div>

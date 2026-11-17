@@ -1,158 +1,46 @@
-"use client";
+import { exigirLogin } from "@/lib/acesso";
+import { prisma } from "@/lib/prisma";
+import { formatDocumento, formatTelefone } from "@/lib/format";
+import Link from "next/link";
+import Icone from "@/components/Icone";
+import ConfiguracoesClient from "./ConfiguracoesClient";
 
-import { useState, useEffect } from "react";
+export const metadata = { title: "Minha empresa" };
 
-export default function ConfiguracoesPage() {
-  const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    fetch("/api/user/logo")
-      .then(res => res.json())
-      .then(data => {
-        if (data.logoBase64) setLogoBase64(data.logoBase64);
-      })
-      .catch(console.error);
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      setError("A imagem não pode ter mais de 2MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setLogoBase64(reader.result as string);
-      setError("");
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSave = async () => {
-    if (!logoBase64) return;
-    
-    setIsLoading(true);
-    setSuccess(false);
-    setError("");
-
-    try {
-      const res = await fetch("/api/user/logo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logoBase64 }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Erro ao salvar a logomarca.");
-      }
-
-      setSuccess(true);
-    } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError("Erro desconhecido");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRemove = async () => {
-    setLogoBase64(null);
-    setIsLoading(true);
-    
-    try {
-      await fetch("/api/user/logo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logoBase64: null }),
-      });
-      setSuccess(true);
-    } catch {
-      setError("Erro ao remover a logo.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+export default async function ConfiguracoesPage({ searchParams }: { searchParams: Promise<{ bemvindo?: string }> }) {
+  const user = await exigirLogin();
+  const { bemvindo } = await searchParams;
+  const dados = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { logoBase64: true } });
 
   return (
-    <>
-      <main className="container animate-fade-in" style={{ paddingTop: "2rem" }}>
-        <h1>Configurações da Empresa</h1>
-        <p className="mb-8 text-secondary">Gerencie as informações da sua empresa e como elas aparecem para os seus fornecedores.</p>
+    <div className="container container--narrow animate-fade-in">
+      <div className="page-header">
+        <div>
+          <h1 className="page-header__title">Minha empresa</h1>
+          <p className="page-header__subtitle">Estes dados aparecem para os fornecedores e no PDF do comparativo.</p>
+        </div>
+      </div>
 
-        <div className="glass-panel" style={{ maxWidth: "600px" }}>
-          <h2>Logomarca</h2>
-          <p className="text-secondary" style={{ marginBottom: "1.5rem" }}>
-            Esta imagem aparecerá no topo do portal do fornecedor quando você compartilhar o link da cotação.
-          </p>
-
-          <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div 
-              style={{ 
-                width: "150px", 
-                height: "150px", 
-                borderRadius: "8px", 
-                border: "2px dashed var(--border-color)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                backgroundColor: "var(--bg-surface)",
-                position: "relative"
-              }}
-            >
-              {logoBase64 ? (
-                <img src={logoBase64} alt="Logomarca" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-              ) : (
-                <span style={{ color: "var(--text-secondary)", fontSize: "0.875rem", textAlign: "center", padding: "1rem" }}>
-                  Sem imagem
-                </span>
-              )}
-            </div>
-
-            <div style={{ flex: 1, minWidth: "250px" }}>
-              <input 
-                type="file" 
-                accept="image/png, image/jpeg, image/webp" 
-                onChange={handleFileChange}
-                style={{ marginBottom: "1rem", display: "block" }}
-                id="logo-upload"
-              />
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
-                Recomendado: Formato quadrado ou horizontal. Máx 2MB (PNG, JPG).
-              </p>
-
-              <div style={{ display: "flex", gap: "1rem" }}>
-                <button 
-                  className="btn" 
-                  onClick={handleSave} 
-                  disabled={isLoading || !logoBase64}
-                >
-                  {isLoading ? "Salvando..." : "Salvar Logomarca"}
-                </button>
-                {logoBase64 && (
-                  <button 
-                    className="btn btn--danger" 
-                    onClick={handleRemove}
-                    disabled={isLoading}
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-
-              {error && <p style={{ color: "var(--color-error)", marginTop: "1rem", fontSize: "0.875rem" }}>{error}</p>}
-              {success && <p style={{ color: "var(--color-success)", marginTop: "1rem", fontSize: "0.875rem" }}>Alterações salvas com sucesso!</p>}
-            </div>
+      {bemvindo && (
+        <div className="alert alert--success mb-6">
+          <Icone nome="checkCirculo" />
+          <div>
+            <strong>Conta criada! Seu teste grátis já começou.</strong>
+            Complete os dados da empresa e envie sua logomarca. Depois, <Link href="/cotacoes/nova">crie a primeira cotação</Link>.
           </div>
         </div>
-      </main>
-    </>
+      )}
+
+      <ConfiguracoesClient
+        inicial={{
+          nome: user.name || "",
+          email: user.email || "",
+          nomeEmpresa: user.nomeEmpresa || "",
+          documento: formatDocumento(user.documento),
+          telefone: formatTelefone(user.telefone),
+          logo: dados.logoBase64,
+        }}
+      />
+    </div>
   );
 }

@@ -30,6 +30,8 @@ model Cotacao {
   id        String          @id @default(cuid())
   numero    Int             @unique @default(autoincrement())
   titulo    String
+  observacoes   String?
+  prazoResposta DateTime?
   ativa     Boolean         @default(true)
   createdAt DateTime        @default(now())
 
@@ -61,6 +63,10 @@ model RespostaFornecedor {
   entregaImediata    Boolean         @default(false)
   condicaoPagamento  String?
   descontoGlobal     Float?          @default(0) // Desconto total oferecido se comprar tudo
+  cnpj               String?
+  email              String?
+  telefone           String?
+  observacoes        String?
   createdAt          DateTime        @default(now())
 
   cotacao            Cotacao         @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
@@ -97,7 +103,14 @@ model User {
   createdAt        DateTime  @default(now())
   trialEndsAt      DateTime? // Configurado ao criar a conta
   isSubscribed     Boolean   @default(false)
-  stripeCustomerId String?   @unique
+  stripeCustomerId String?   @unique // legado (não usado)
+
+  // Assinatura (Asaas)
+  asaasCustomerId     String?   @unique
+  asaasSubscriptionId String?   @unique
+  plano               String?   // MENSAL | ANUAL
+  assinaturaStatus    String?   // ATIVA | CANCELADA | ATRASADA
+  pagoAte             DateTime?
 
   // B2B Fields
   documento        String?   @unique // CNPJ ou CPF
@@ -109,6 +122,20 @@ model User {
   sessions         Session[]
   produtos         Produto[]
   cotacoes         Cotacao[]
+  pagamentos       Pagamento[]
+}
+
+model Pagamento {
+  id         String   @id // id do pagamento no Asaas (evita processar duas vezes)
+  userId     String
+  valor      Float
+  plano      String
+  status     String
+  formaPagamento String?
+  pagoEm     DateTime @default(now())
+  validoAte  DateTime
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -152,6 +179,7 @@ model VerificationCode {
   code      String
   expiresAt DateTime
   type      String   // "REGISTER" ou "RESET_PASSWORD"
+  tentativas Int     @default(0)
   createdAt DateTime @default(now())
 
   @@unique([email, code])

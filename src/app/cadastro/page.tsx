@@ -4,211 +4,225 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-
-function getRegistrationMessage(errorParam: string | null) {
-  if (errorParam === "google_account_already_exists") {
-    return "E-mail já cadastrado! Deseja fazer login?";
-  }
-
-  return "";
-}
+import { AuthLayout, IconeGoogle } from "@/components/AuthLayout";
+import Icone from "@/components/Icone";
 
 function CadastroContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(() => getRegistrationMessage(searchParams.get("error")));
+  const jaExisteGoogle = searchParams.get("error") === "google_account_already_exists";
+
+  const [etapa, setEtapa] = useState(1);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState(jaExisteGoogle ? "Já existe uma conta com este e-mail do Google." : "");
+  const [aviso, setAviso] = useState("");
 
   const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
-  const [code, setCode] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [senha, setSenha] = useState("");
+  const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [nomeEmpresa, setNomeEmpresa] = useState("");
-  const isGoogleAccountAlreadyExists = searchParams.get("error") === "google_account_already_exists";
+  const [empresa, setEmpresa] = useState("");
+  const [aceite, setAceite] = useState(false);
 
-  const handleGoogleRegister = async () => {
+  async function cadastrarGoogle() {
     await fetch("/api/auth/google-intent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: "register" }),
     });
+    signIn("google", { callbackUrl: "/configuracoes?bemvindo=1" }, { prompt: "select_account" });
+  }
 
-    signIn("google", { callbackUrl: "/" }, { prompt: "select_account" });
-  };
+  async function chamar(url: string, corpo: object) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) });
+    const dados = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(dados.error || "Algo deu errado. Tente novamente.");
+    return dados;
+  }
 
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
+  async function executar(acao: () => Promise<void>) {
+    setCarregando(true);
+    setErro("");
     try {
-      const res = await fetch("/api/auth/send-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, type: "REGISTER" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao enviar código");
-      setStep(2);
-    } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError("Erro desconhecido");
+      await acao();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro desconhecido.");
     } finally {
-      setIsLoading(false);
+      setCarregando(false);
     }
+  }
+
+  const enviarCodigo = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    executar(async () => {
+      const r = await chamar("/api/auth/send-code", { email, type: "REGISTER" });
+      setAviso(r.devMode ? "Modo de teste: o código apareceu no terminal do servidor." : "");
+      setEtapa(2);
+    });
   };
 
-  const handleVerifyCode = async (e: React.FormEvent) => {
+  const verificar = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, type: "REGISTER" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Código inválido");
-      setStep(3);
-    } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError("Erro desconhecido");
-    } finally {
-      setIsLoading(false);
-    }
+    executar(async () => {
+      await chamar("/api/auth/verify-code", { email, code: codigo, type: "REGISTER" });
+      setEtapa(3);
+    });
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const concluir = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, password, name, documento, telefone, nomeEmpresa }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao criar conta");
-
-      const signInRes = await signIn("credentials", { email, password, redirect: false });
-      if (signInRes?.error) throw new Error("Conta criada, mas erro ao fazer login.");
-
+    if (!aceite) {
+      setErro("Para continuar, aceite os termos de uso e a política de privacidade.");
+      return;
+    }
+    executar(async () => {
+      await chamar("/api/auth/register", { email, code: codigo, password: senha, name: nome, documento, telefone, nomeEmpresa: empresa });
+      const r = await signIn("credentials", { email, password: senha, redirect: false });
+      if (r?.error) throw new Error("Conta criada, mas não foi possível entrar. Tente fazer login.");
       router.push("/");
       router.refresh();
-    } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError("Erro desconhecido");
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   return (
-    <div className="container animate-fade-in" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
-      <div className="glass-panel" style={{ width: "100%", maxWidth: "450px" }}>
-        <div style={{ marginBottom: "1.5rem", textAlign: "center" }}>
-          <h2>Criar uma conta</h2>
-          <p>
-            {step === 1 && "Informe seu e-mail de trabalho para começar."}
-            {step === 2 && `Enviamos um código para ${email}`}
-            {step === 3 && "Preencha seus dados corporativos para finalizar."}
-          </p>
-        </div>
-        
-        {error && (
-          <div style={{ backgroundColor: "var(--color-error)", color: "white", padding: "0.75rem", borderRadius: "0.5rem", marginBottom: "1rem", fontSize: "0.875rem" }}>
-            {error}
-            {isGoogleAccountAlreadyExists && (
-              <div style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}>
-                <Link href="/login" style={{ color: "white", fontWeight: "bold", textDecoration: "underline" }}>Fazer login</Link>
+    <AuthLayout>
+      <div className="steps-indicator" aria-hidden="true">
+        <span className="on" />
+        <span className={etapa >= 2 ? "on" : ""} />
+        <span className={etapa >= 3 ? "on" : ""} />
+      </div>
+
+      <h1 className="auth-card__title">{etapa === 3 ? "Dados da empresa" : "Crie sua conta grátis"}</h1>
+      <p className="auth-card__subtitle">
+        {etapa === 1 && "7 dias grátis, sem cartão de crédito."}
+        {etapa === 2 && (
+          <>
+            Enviamos um código de 6 dígitos para <strong>{email}</strong>.
+          </>
+        )}
+        {etapa === 3 && "Falta pouco. Estes dados aparecem para os seus fornecedores."}
+      </p>
+
+      {erro && (
+        <div className="alert alert--error mb-4">
+          <Icone nome="alerta" />
+          <div>
+            {erro}
+            {jaExisteGoogle && etapa === 1 && (
+              <div className="mt-1">
+                <Link href="/login">Fazer login</Link>
               </div>
             )}
           </div>
-        )}
+        </div>
+      )}
+      {aviso && etapa === 2 && (
+        <div className="alert alert--info mb-4">
+          <Icone nome="info" /> <div>{aviso}</div>
+        </div>
+      )}
 
-        {step === 1 && (
-          <form onSubmit={handleSendCode}>
-            <div className="input-group">
-              <label className="input-label" htmlFor="email">E-mail corporativo</label>
-              <input className="input-field" id="email" type="email" placeholder="voce@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isLoading} />
+      {etapa === 1 && (
+        <>
+          <button type="button" onClick={cadastrarGoogle} className="btn btn-google btn--lg">
+            <IconeGoogle /> Cadastrar com Google
+          </button>
+          <div className="divider">ou com e-mail</div>
+          <form onSubmit={enviarCodigo}>
+            <div className="field">
+              <label className="input-label" htmlFor="email">E-mail de trabalho</label>
+              <input className="input-field" id="email" type="email" autoComplete="email" placeholder="voce@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={carregando} />
             </div>
-            <button type="submit" className="btn" style={{ width: "100%" }} disabled={isLoading}>
-              {isLoading ? "Enviando..." : "Continuar"}
+            <button type="submit" className="btn btn--lg btn--block" disabled={carregando}>
+              {carregando ? <span className="spinner" /> : null} Continuar
             </button>
           </form>
-        )}
+        </>
+      )}
 
-        {step === 2 && (
-          <form onSubmit={handleVerifyCode}>
-            <div className="input-group">
-              <label className="input-label" htmlFor="code">Código de verificação (6 dígitos)</label>
-              <input className="input-field" id="code" type="text" placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} maxLength={6} required disabled={isLoading} style={{ textAlign: "center", letterSpacing: "0.5em", fontSize: "1.25rem" }} />
-            </div>
-            <button type="submit" className="btn" style={{ width: "100%", marginBottom: "1rem" }} disabled={isLoading}>
-              {isLoading ? "Verificando..." : "Verificar Código"}
-            </button>
-            <div style={{ textAlign: "center" }}>
-              <button type="button" onClick={() => setStep(1)} style={{ background: "none", border: "none", color: "var(--text-secondary)", textDecoration: "underline", cursor: "pointer" }}>
-                Voltar e alterar o e-mail
-              </button>
-            </div>
-          </form>
-        )}
-
-        {step === 3 && (
-          <form onSubmit={handleRegister}>
-            <div className="input-group">
-              <label className="input-label" htmlFor="name">Seu Nome</label>
-              <input className="input-field" id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-            </div>
-            <div className="input-group">
-              <label className="input-label" htmlFor="documento">CNPJ ou CPF</label>
-              <input className="input-field" id="documento" type="text" value={documento} onChange={(e) => setDocumento(e.target.value)} required />
-            </div>
-            <div className="input-group">
-              <label className="input-label" htmlFor="nomeEmpresa">Nome da Empresa</label>
-              <input className="input-field" id="nomeEmpresa" type="text" value={nomeEmpresa} onChange={(e) => setNomeEmpresa(e.target.value)} required />
-            </div>
-            <div className="input-group">
-              <label className="input-label" htmlFor="telefone">Telefone / WhatsApp</label>
-              <input className="input-field" id="telefone" type="text" value={telefone} onChange={(e) => setTelefone(e.target.value)} required />
-            </div>
-            <div className="input-group">
-              <label className="input-label" htmlFor="password">Crie uma Senha</label>
-              <input className="input-field" id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-            </div>
-            <button type="submit" className="btn" style={{ width: "100%" }} disabled={isLoading}>
-              {isLoading ? "Finalizando..." : "Concluir Cadastro"}
-            </button>
-          </form>
-        )}
-
-        {step === 1 && (
-          <div style={{ marginTop: "1.5rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem", textAlign: "center" }}>
-            <button onClick={handleGoogleRegister} className="btn btn--outline" style={{ width: "100%", marginBottom: "1rem" }}>
-              Cadastrar com Google
-            </button>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-              Se já tiver cadastro com este e-mail, escolha a mesma conta do Google ou acesse o login.
-            </p>
-            <p style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-              Caso já exista cadastro com este e-mail, use o login para acessar a conta já criada.
-            </p>
-            <p style={{ fontSize: "0.875rem" }}>
-              Já tem uma conta? <Link href="/login" style={{ color: "var(--color-brand-600)", fontWeight: "bold", textDecoration: "none" }}>Faça login</Link>
-            </p>
+      {etapa === 2 && (
+        <form onSubmit={verificar}>
+          <div className="field">
+            <label className="input-label" htmlFor="codigo">Código de verificação</label>
+            <input
+              className="input-field code-input"
+              id="codigo"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              required
+              autoFocus
+              disabled={carregando}
+            />
+            <span className="input-hint">Não chegou? Confira a caixa de spam ou promoções.</span>
           </div>
-        )}
-      </div>
-    </div>
+          <button type="submit" className="btn btn--lg btn--block" disabled={carregando || codigo.length !== 6}>
+            {carregando ? <span className="spinner" /> : null} Confirmar código
+          </button>
+          <div className="row mt-4" style={{ justifyContent: "space-between" }}>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEtapa(1)}>
+              <Icone nome="setaEsq" tamanho={14} /> Trocar e-mail
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => enviarCodigo()} disabled={carregando}>
+              Reenviar código
+            </button>
+          </div>
+        </form>
+      )}
+
+      {etapa === 3 && (
+        <form onSubmit={concluir}>
+          <div className="field">
+            <label className="input-label" htmlFor="nome">Seu nome</label>
+            <input className="input-field" id="nome" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={120} />
+          </div>
+          <div className="field">
+            <label className="input-label" htmlFor="empresa">Nome da empresa</label>
+            <input className="input-field" id="empresa" autoComplete="organization" value={empresa} onChange={(e) => setEmpresa(e.target.value)} required maxLength={150} />
+          </div>
+          <div className="form-row">
+            <div className="field">
+              <label className="input-label" htmlFor="documento">CNPJ ou CPF</label>
+              <input className="input-field" id="documento" inputMode="numeric" value={documento} onChange={(e) => setDocumento(e.target.value)} maxLength={18} />
+            </div>
+            <div className="field">
+              <label className="input-label" htmlFor="telefone">WhatsApp</label>
+              <input className="input-field" id="telefone" inputMode="tel" autoComplete="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={16} />
+            </div>
+          </div>
+          <div className="field">
+            <label className="input-label" htmlFor="senha">Crie uma senha</label>
+            <input className="input-field" id="senha" type="password" autoComplete="new-password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={8} />
+            <span className="input-hint">Mínimo de 8 caracteres.</span>
+          </div>
+          <label className="checkbox mb-4" style={{ alignItems: "flex-start" }}>
+            <input type="checkbox" checked={aceite} onChange={(e) => setAceite(e.target.checked)} />
+            <span className="text-sm">
+              Li e aceito os <Link href="/termos" target="_blank">termos de uso</Link> e a{" "}
+              <Link href="/privacidade" target="_blank">política de privacidade</Link>.
+            </span>
+          </label>
+          <button type="submit" className="btn btn--lg btn--block" disabled={carregando}>
+            {carregando ? <span className="spinner" /> : null} Criar conta e começar
+          </button>
+        </form>
+      )}
+
+      {etapa === 1 && (
+        <p className="text-sm text-center mt-6">
+          Já tem conta? <Link href="/login" className="fw-700">Entrar</Link>
+        </p>
+      )}
+      {etapa === 1 && (
+        <p className="text-xs text-center text-muted mt-3">
+          Ao continuar com o Google, você aceita os <Link href="/termos">termos de uso</Link> e a <Link href="/privacidade">política de privacidade</Link>.
+        </p>
+      )}
+    </AuthLayout>
   );
 }
 
