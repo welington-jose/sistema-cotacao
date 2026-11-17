@@ -2,11 +2,10 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
-
-const prisma = new PrismaClient();
+import { prisma } from "./prisma";
+import { DIAS_TESTE } from "./marca";
 
 import type { Adapter } from "next-auth/adapters";
 
@@ -36,7 +35,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+          where: { email: credentials.email.trim().toLowerCase() }
         });
 
         if (!user || !user.password) {
@@ -55,6 +54,15 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+  },
+  events: {
+    // Conta criada pelo Google: começa o teste grátis.
+    async createUser({ user }) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { trialEndsAt: new Date(Date.now() + DIAS_TESTE * 24 * 60 * 60 * 1000) },
+      });
+    },
   },
   callbacks: {
     async signIn({ user, account }) {

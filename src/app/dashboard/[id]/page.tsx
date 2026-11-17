@@ -1,308 +1,369 @@
-import { PrismaClient } from "@prisma/client";
-import { formatCotacaoNumero } from "@/lib/format";
-import { finishCotacao } from "../../actions/cotacoes";
-import PrintButton from "./PrintButton";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { exigirAcesso } from "@/lib/acesso";
+import { analisarCotacao, carregarCotacaoDoUsuario } from "@/lib/analise";
+import {
+  formatCotacaoNumero,
+  formatData,
+  formatDataHora,
+  formatDocumento,
+  formatMoeda,
+  formatNumero,
+  formatTelefone,
+  linkWhatsapp,
+} from "@/lib/format";
+import Icone from "@/components/Icone";
+import AcoesCotacao from "@/components/AcoesCotacao";
 
-const prisma = new PrismaClient();
+export const metadata = { title: "Comparativo" };
 
-export default async function DashboardCotacaoPage({
-  params
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default async function DashboardCotacaoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const user = await exigirAcesso();
+  const cotacao = await carregarCotacaoDoUsuario(id, user.id);
+  if (!cotacao) notFound();
 
-  const cotacao = await prisma.cotacao.findUnique({
-    where: { id },
-    include: {
-      itens: {
-        include: { produto: true }
-      },
-      respostas: {
-        include: { itens: true }
-      }
-    }
-  });
-
-  if (!cotacao) {
-    return <div className="container">Cotação não encontrada.</div>;
-  }
-
-  // --- Lógica de Resumo dos Menores Preços ---
-  // Para cada item da cotação, queremos encontrar o fornecedor que ofereceu o menor preço final
-  type MelhorOfertaType = {
-    fornecedor: string;
-    marca: string | null;
-    precoBruto: number;
-    desconto: number;
-    precoFinal: number;
-    prazo: string | null;
-    entregaImediata: boolean;
-    condicao: string | null;
-    atendeTotalPedido: boolean;
-    quantidadeDisponivel: number | null;
-  };
-
-  const resumosItens = cotacao.itens.map(itemSolicitado => {
-    let melhorOferta: MelhorOfertaType | null = null;
-    let menorPreco = Infinity;
-
-    cotacao.respostas.forEach(respostaFornecedor => {
-      // Find what this supplier answered for this specific item
-      const itemRespondido = respostaFornecedor.itens.find(i => i.cotacaoItemId === itemSolicitado.id);
-
-      if (itemRespondido && itemRespondido.precoUnitario && itemRespondido.precoUnitario > 0) {
-        const precoUn = itemRespondido.precoUnitario;
-        const descItem = itemRespondido.descontoItem || 0;
-        const precoFinal = Math.max(0, precoUn - descItem);
-
-        if (precoFinal < menorPreco) {
-          menorPreco = precoFinal;
-          melhorOferta = {
-            fornecedor: respostaFornecedor.nomeFornecedor,
-            marca: itemRespondido.marca,
-            precoBruto: precoUn,
-            desconto: descItem,
-            precoFinal: precoFinal,
-            prazo: respostaFornecedor.prazoEntrega,
-            entregaImediata: respostaFornecedor.entregaImediata,
-            condicao: respostaFornecedor.condicaoPagamento,
-            atendeTotalPedido: itemRespondido.atendeTotalPedido,
-            quantidadeDisponivel: itemRespondido.quantidadeDisponivel
-          };
-        }
-      }
-    });
-
-    return {
-      produto: itemSolicitado.produto,
-      quantidade: itemSolicitado.quantidade,
-      marca: itemSolicitado.marca,
-      melhorOferta: melhorOferta as MelhorOfertaType | null
-    };
-  });
-
-  const totalMenoresPrecos = resumosItens.reduce((acc, resumo) => {
-    if (resumo.melhorOferta) {
-      return acc + (resumo.melhorOferta.precoFinal * resumo.quantidade);
-    }
-    return acc;
-  }, 0);
-
-  const totaisPorFornecedor = cotacao.respostas.map(fornecedor => {
-    let somaItens = 0;
-    cotacao.itens.forEach(itemS => {
-      const respItem = fornecedor.itens.find(i => i.cotacaoItemId === itemS.id);
-      if (respItem && respItem.precoUnitario && respItem.precoUnitario > 0) {
-        const pFinal = Math.max(0, respItem.precoUnitario - (respItem.descontoItem || 0));
-        somaItens += pFinal * itemS.quantidade;
-      }
-    });
-    const descontoGlobal = fornecedor.descontoGlobal || 0;
-    const totalGeral = Math.max(0, somaItens - descontoGlobal);
-    return { fornecedorId: fornecedor.id, somaItens, descontoGlobal, totalGeral };
-  });
+  const analise = analisarCotacao(cotacao);
+  const numero = formatCotacaoNumero(cotacao.numero);
+  const empresa = user.nomeEmpresa || user.name || "";
+  const temRespostas = cotacao.respostas.length > 0;
 
   return (
-    <div className="container animate-fade-in">
-      <div className="flex-between mb-8">
+    <div className="container container--wide animate-fade-in">
+      <div className="breadcrumb">
+        <Link href="/">Cotações</Link> <span>/</span> <Link href={`/cotacao/${cotacao.id}`}>Nº {numero}</Link> <span>/</span> <span>Comparativo</span>
+      </div>
+
+      <div className="page-header">
         <div>
-          <p style={{ fontWeight: 700, color: "var(--color-brand-600)" }}>
-            Cotação Nº {formatCotacaoNumero(cotacao.numero)}
-          </p>
-          <h1>Cotação: {cotacao.titulo}</h1>
-          <p>Análise comparativa das respostas cadastradas pelos {cotacao.respostas.length} fornecedores.</p>
+          <div className="page-header__eyebrow">Cotação Nº {numero}</div>
+          <h1 className="page-header__title">{cotacao.titulo}</h1>
+          <div className="row mt-2">
+            {cotacao.ativa ? (
+              <span className="badge badge--success badge--dot">Recebendo propostas</span>
+            ) : (
+              <span className="badge badge--dot">Finalizada</span>
+            )}
+            <span className="text-sm text-muted">
+              {cotacao.respostas.length} proposta(s) · {cotacao.itens.length} item(ns) · criada em {formatData(cotacao.createdAt)}
+            </span>
+          </div>
         </div>
-
-        <div className="no-print" style={{ display: "flex", gap: "1rem" }}>
-          <PrintButton />
-
-          {cotacao.ativa && (
-            <form action={async () => {
-              "use server";
-              await finishCotacao(cotacao.id);
-            }}>
-              <button type="submit" className="btn btn--danger">Finalizar Cotação (Fechar Link)</button>
-            </form>
+        <div className="row no-print">
+          {temRespostas && (
+            <a href={`/api/cotacoes/${cotacao.id}/pdf`} className="btn">
+              <Icone nome="baixar" tamanho={16} /> Baixar PDF
+            </a>
           )}
+          <Link href={`/cotacao/${cotacao.id}`} className="btn btn--outline">
+            <Icone nome="link" tamanho={16} /> Link e convites
+          </Link>
+          <AcoesCotacao id={cotacao.id} ativa={cotacao.ativa} compacto />
         </div>
       </div>
 
-      <div className="glass-panel mb-8">
-        <h2>🏆 Tabela de Resumo (Menores Preços por Item)</h2>
-        <div className="table-wrapper mt-4">
-          <table className="data-table">
-            <thead>
-              <tr style={{ backgroundColor: "var(--color-brand-50)" }}>
-                <th>Material Solicitado</th>
-                <th>Qtd</th>
-                <th>Fornecedor Vencedor</th>
-                <th>Marca Vencedora</th>
-                <th>Detalhes (Prazo/Pag./Estoque)</th>
-                <th style={{ textAlign: "right" }}>Melhor Valor (Un)</th>
-                <th style={{ textAlign: "right" }}>Total Bruto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resumosItens.map((resumo, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <span style={{ fontWeight: 500 }}>{resumo.produto.nome}</span>
-                    {resumo.marca && <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Marca desejada: {resumo.marca}</div>}
-                  </td>
-                  <td>{resumo.quantidade} {resumo.produto.unidade}</td>
-
-                  {resumo.melhorOferta ? (
-                    <>
-                      <td style={{ color: "var(--color-brand-600)", fontWeight: "bold" }}>{resumo.melhorOferta.fornecedor}</td>
-                      <td>{resumo.melhorOferta.marca || "-"}</td>
-                      <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                        <div>Prazo: {resumo.melhorOferta.entregaImediata ? "Imediata" : resumo.melhorOferta.prazo || "-"}</div>
-                        <div>Pag: {resumo.melhorOferta.condicao || "-"}</div>
-                        <div>
-                          Estoque: {resumo.melhorOferta.atendeTotalPedido
-                            ? "Total pedido"
-                            : `${resumo.melhorOferta.quantidadeDisponivel ?? 0} ${resumo.produto.unidade}`}
-                        </div>
-                        {!resumo.melhorOferta.atendeTotalPedido && resumo.melhorOferta.quantidadeDisponivel !== null && resumo.melhorOferta.quantidadeDisponivel < resumo.quantidade && (
-                          <div style={{ marginTop: "0.5rem", color: "var(--color-error)", fontWeight: 700 }}>
-                            Estoque insuficiente
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {resumo.melhorOferta.desconto > 0 && (
-                          <span style={{ textDecoration: "line-through", color: "var(--color-error)", fontSize: "0.8rem", display: "block" }}>
-                            R$ {resumo.melhorOferta.precoBruto.toFixed(2)}
-                          </span>
-                        )}
-                        <span style={{ fontWeight: "bold", color: "var(--color-success)" }}>
-                          R$ {resumo.melhorOferta.precoFinal.toFixed(2)}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: "right", fontWeight: "bold" }}>
-                        R$ {(resumo.melhorOferta.precoFinal * resumo.quantidade).toFixed(2)}
-                      </td>
-                    </>
-                  ) : (
-                    <td colSpan={5} style={{ color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center" }}>
-                      Nenhuma oferta válida para este item.
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ backgroundColor: "var(--color-brand-50)", fontWeight: "bold" }}>
-                <td colSpan={6} style={{ textAlign: "right" }}>Total Resumo (Menores Preços):</td>
-                <td style={{ textAlign: "right", color: "var(--color-success)" }}>
-                  R$ {totalMenoresPrecos.toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+      {!temRespostas ? (
+        <div className="card">
+          <div className="empty-state">
+            <div className="empty-state__icon">
+              <Icone nome="relogio" tamanho={26} />
+            </div>
+            <h3>Nenhuma proposta ainda</h3>
+            <p>Envie o link para os fornecedores. O comparativo aparece aqui assim que a primeira proposta chegar.</p>
+            <Link href={`/cotacao/${cotacao.id}`} className="btn">
+              <Icone nome="enviar" /> Enviar link
+            </Link>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="grid-4 mb-6">
+            <div className="stat stat--brand">
+              <div className="stat__label"><Icone nome="trofeu" tamanho={15} /> Melhor combinação</div>
+              <div className="stat__value">{formatMoeda(analise.melhorCombinacao)}</div>
+              <div className="stat__hint">comprando cada item de quem cobra menos</div>
+            </div>
+            <div className="stat stat--success">
+              <div className="stat__label"><Icone nome="porco" tamanho={15} /> Economia</div>
+              <div className="stat__value">{formatMoeda(analise.economia)}</div>
+              <div className="stat__hint">
+                {analise.piorUnico && analise.itensSemOferta === 0
+                  ? `vs. tudo com ${analise.piorUnico.resposta.nomeFornecedor}`
+                  : "precisa de um fornecedor com todos os itens"}
+              </div>
+            </div>
+            <div className="stat">
+              <div className="stat__label"><Icone nome="predio" tamanho={15} /> Melhor fornecedor único</div>
+              <div className="stat__value" style={{ fontSize: "1.25rem" }}>
+                {analise.melhorUnico ? formatMoeda(analise.melhorUnico.total) : "—"}
+              </div>
+              <div className="stat__hint truncate">
+                {analise.melhorUnico ? analise.melhorUnico.resposta.nomeFornecedor : "nenhum cotou todos os itens"}
+              </div>
+            </div>
+            <div className="stat">
+              <div className="stat__label"><Icone nome="caixa" tamanho={15} /> Itens com preço</div>
+              <div className="stat__value">
+                {cotacao.itens.length - analise.itensSemOferta} <span className="text-muted" style={{ fontSize: "1rem" }}>de {cotacao.itens.length}</span>
+              </div>
+              <div className="stat__hint">{analise.itensSemOferta > 0 ? `${analise.itensSemOferta} sem nenhuma oferta` : "todos cotados"}</div>
+            </div>
+          </div>
 
-      <div className="glass-panel print-matrix-panel">
-        <h2>📊 Tabela Completa (Por Fornecedor)</h2>
-        <div style={{ overflowX: "auto", paddingBottom: "1rem" }} className="mt-4 table-wrapper-print">
-          <table className="data-table matrix-table">
-            <thead>
-              <tr>
-                <th style={{ position: "sticky", left: 0, backgroundColor: "var(--bg-primary)", zIndex: 1, borderRight: "2px solid var(--border-color)" }}>
-                  Item / Fornecedor
-                </th>
-                {cotacao.respostas.map(fornecedor => (
-                  <th key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)" }}>
-                    <div style={{ fontSize: "1.1rem", color: "var(--color-brand-600)" }}>{fornecedor.nomeFornecedor}</div>
-                    <div style={{ fontSize: "0.75rem", fontWeight: "normal", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                      Prazo: {fornecedor.entregaImediata ? "Imediata" : fornecedor.prazoEntrega || "-"} | Pag: {fornecedor.condicaoPagamento || "-"}
-                      <br />
-                      {fornecedor.descontoGlobal && fornecedor.descontoGlobal > 0 ? (
-                        <span style={{ color: "var(--color-success)", fontWeight: "bold" }}>
-                          Desconto Global: R$ {fornecedor.descontoGlobal.toFixed(2)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cotacao.itens.map(itemS => (
-                <tr key={itemS.id}>
-                  <td style={{ position: "sticky", left: 0, backgroundColor: "var(--bg-surface)", zIndex: 1, borderRight: "2px solid var(--border-color)" }}>
-                    <div style={{ fontWeight: 500 }}>{itemS.produto.nome}</div>
-                    <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{itemS.quantidade} {itemS.produto.unidade}</div>
-                    {itemS.marca && <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Desejada: {itemS.marca}</div>}
-                  </td>
-                  {cotacao.respostas.map(fornecedor => {
-                    const respItem = fornecedor.itens.find(i => i.cotacaoItemId === itemS.id);
-                    if (!respItem || (respItem.precoUnitario === null || respItem.precoUnitario === 0)) {
-                      return (
-                        <td key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)", color: "var(--text-secondary)" }}>
-                          -
-                        </td>
-                      );
-                    }
-
-                    const pFinal = Math.max(0, respItem.precoUnitario - (respItem.descontoItem || 0));
-
-                    return (
-                      <td key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)" }}>
-                        <div style={{ fontSize: "0.85rem" }}>Marca: {respItem.marca || "-"}</div>
-                        {(!respItem.atendeTotalPedido && typeof respItem.quantidadeDisponivel === "number" && respItem.quantidadeDisponivel < itemS.quantidade) ? (
-                          <div style={{ fontSize: "0.75rem", color: "var(--color-error)", marginTop: "0.25rem", fontWeight: 700 }}>
-                            Estoque insuficiente: {respItem.quantidadeDisponivel} {itemS.produto.unidade}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                            Estoque: {respItem.atendeTotalPedido ? "Total pedido" : `${respItem.quantidadeDisponivel ?? 0} ${itemS.produto.unidade}`}
-                          </div>
-                        )}
-                        <div style={{ fontWeight: "bold", marginTop: "0.25rem" }}>
-                          R$ {pFinal.toFixed(2)}
-                        </div>
-                        {respItem.descontoItem! > 0 && (
-                          <div style={{ fontSize: "0.75rem", color: "var(--color-error)" }}>
-                            (R$ {respItem.precoUnitario.toFixed(2)} - Desc: R$ {respItem.descontoItem!.toFixed(2)})
-                          </div>
-                        )}
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                          Total: R$ {(pFinal * itemS.quantidade).toFixed(2)}
-                        </div>
+          {/* Menor preço por item */}
+          <div className="card card--flush mb-6">
+            <div className="card__header card__header--bordered">
+              <div>
+                <div className="card__title"><Icone nome="trofeu" /> Menor preço por item</div>
+                <div className="card__subtitle">O vencedor de cada item, já com o desconto aplicado.</div>
+              </div>
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th className="num">Qtd.</th>
+                    <th>Fornecedor vencedor</th>
+                    <th>Marca</th>
+                    <th className="num">Preço unit.</th>
+                    <th className="num">Total</th>
+                    <th className="num">2º menor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analise.itens.map(({ item, melhor, ofertas }) => (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="fw-600" style={{ color: "var(--text)" }}>{item.produto.nome}</div>
+                        {item.marca && <div className="text-xs text-muted">Preferência: {item.marca}</div>}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td style={{ position: "sticky", left: 0, backgroundColor: "var(--bg-primary)", zIndex: 1, borderRight: "2px solid var(--border-color)", fontWeight: "bold", textAlign: "right", paddingRight: "1rem" }}>
-                  Total Geral por Fornecedor
-                </td>
-                {cotacao.respostas.map(fornecedor => {
-                  const total = totaisPorFornecedor.find(t => t.fornecedorId === fornecedor.id);
-                  if (!total) return <td key={fornecedor.id}></td>;
-                  return (
-                    <td key={fornecedor.id} style={{ textAlign: "center", borderLeft: "1px solid var(--border-color)", fontWeight: "bold", backgroundColor: "var(--color-brand-50)", padding: "1rem" }}>
-                      {total.descontoGlobal > 0 && (
+                      <td className="num">{formatNumero(item.quantidade)} {item.produto.unidade}</td>
+                      {melhor ? (
                         <>
-                          <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", fontWeight: "normal", textDecoration: "line-through" }}>Soma dos itens: R$ {total.somaItens.toFixed(2)}</div>
-                          <div style={{ color: "var(--color-error)", fontSize: "0.85rem", fontWeight: "normal" }}>Desconto Global: - R$ {total.descontoGlobal.toFixed(2)}</div>
+                          <td>
+                            <div className="fw-700 text-brand">{melhor.fornecedor}</div>
+                            {melhor.estoqueInsuficiente && (
+                              <span className="badge badge--warning mt-1">
+                                Só tem {formatNumero(melhor.quantidadeDisponivel)} {item.produto.unidade}
+                              </span>
+                            )}
+                          </td>
+                          <td>{melhor.marca || <span className="muted">—</span>}</td>
+                          <td className="num">
+                            {melhor.desconto > 0 && <div className="price-strike">{formatMoeda(melhor.precoUnitario)}</div>}
+                            <span className="price-best">{formatMoeda(melhor.precoFinal)}</span>
+                          </td>
+                          <td className="num fw-700">{formatMoeda(melhor.total)}</td>
+                          <td className="num muted">
+                            {ofertas[1] ? (
+                              <>
+                                {formatMoeda(ofertas[1].precoFinal)}
+                                <div className="text-xs">+{formatMoeda((ofertas[1].precoFinal - melhor.precoFinal) * item.quantidade)}</div>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
                         </>
+                      ) : (
+                        <td colSpan={5} className="center muted" style={{ fontStyle: "italic" }}>
+                          Nenhum fornecedor cotou este item
+                        </td>
                       )}
-                      <div style={{ color: "var(--color-success)", fontSize: "1.1rem", marginTop: "0.25rem" }}>R$ {total.totalGeral.toFixed(2)}</div>
-                    </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={5} className="num">Total da melhor combinação</td>
+                    <td className="num text-success" style={{ fontSize: "1.05rem" }}>{formatMoeda(analise.melhorCombinacao)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Pedido sugerido por fornecedor */}
+          {analise.pedidosPorFornecedor.length > 0 && (
+            <div className="mb-6">
+              <div className="flex-between mb-3">
+                <div>
+                  <h2>Pedido sugerido por fornecedor</h2>
+                  <p className="text-sm text-muted">O que comprar de cada um para pagar o menor preço em todos os itens.</p>
+                </div>
+              </div>
+              <div className="grid-3">
+                {analise.pedidosPorFornecedor.map((pedido) => {
+                  const resposta = cotacao.respostas.find((r) => r.id === pedido.respostaId)!;
+                  const textoPedido =
+                    `Olá! Aqui é da ${empresa}. Sobre a cotação Nº ${numero} (${cotacao.titulo}), gostaríamos de fechar os itens:\n\n` +
+                    pedido.itens
+                      .map(
+                        (l) =>
+                          `• ${l.item.produto.nome} — ${formatNumero(l.item.quantidade)} ${l.item.produto.unidade} × ${formatMoeda(l.melhor!.precoFinal)} = ${formatMoeda(l.melhor!.total)}`,
+                      )
+                      .join("\n") +
+                    `\n\nTotal: ${formatMoeda(pedido.total)}\nPodem confirmar?`;
+                  const wa = linkWhatsapp(resposta.telefone, textoPedido);
+                  const mail = resposta.email
+                    ? `mailto:${resposta.email}?subject=${encodeURIComponent(`Pedido — Cotação Nº ${numero}`)}&body=${encodeURIComponent(textoPedido)}`
+                    : null;
+                  return (
+                    <div key={pedido.respostaId} className="card">
+                      <div className="flex-between mb-3">
+                        <div style={{ minWidth: 0 }}>
+                          <div className="fw-700 truncate">{pedido.fornecedor}</div>
+                          <div className="text-xs text-muted">{pedido.itens.length} item(ns)</div>
+                        </div>
+                        <div className="fw-700 tabular text-brand" style={{ fontSize: "1.1rem" }}>{formatMoeda(pedido.total)}</div>
+                      </div>
+                      <ul className="stack-sm text-sm mb-4" style={{ listStyle: "none" }}>
+                        {pedido.itens.map((l) => (
+                          <li key={l.item.id} className="flex-between" style={{ gap: "0.5rem" }}>
+                            <span className="truncate">
+                              {l.item.produto.nome} <span className="text-muted">· {formatNumero(l.item.quantidade)} {l.item.produto.unidade}</span>
+                            </span>
+                            <span className="tabular nowrap">{formatMoeda(l.melhor!.total)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="row no-print" style={{ gap: "0.4rem" }}>
+                        {wa && (
+                          <a href={wa} target="_blank" rel="noopener noreferrer" className="btn btn--whatsapp btn--sm">
+                            <Icone nome="whatsapp" tamanho={15} /> Enviar pedido
+                          </a>
+                        )}
+                        {mail && (
+                          <a href={mail} className="btn btn--outline btn--sm">
+                            <Icone nome="email" tamanho={15} /> E-mail
+                          </a>
+                        )}
+                        {!wa && !mail && <span className="text-xs text-muted">Fornecedor não informou contato.</span>}
+                      </div>
+                    </div>
                   );
                 })}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+              </div>
+            </div>
+          )}
+
+          {/* Matriz comparativa */}
+          <div className="card card--flush mb-6">
+            <div className="card__header card__header--bordered">
+              <div>
+                <div className="card__title"><Icone nome="grafico" /> Comparativo completo</div>
+                <div className="card__subtitle">Preço final unitário de cada fornecedor. Em verde, o menor preço do item.</div>
+              </div>
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table matrix">
+                <thead>
+                  <tr>
+                    <th className="sticky-col">Item</th>
+                    {analise.fornecedores.map((f) => (
+                      <th key={f.resposta.id} className="supplier-head">
+                        <div className="fw-700">{f.resposta.nomeFornecedor}</div>
+                        <div className="text-xs text-muted" style={{ fontWeight: 500 }}>
+                          {f.resposta.entregaImediata ? "Entrega imediata" : `Prazo: ${f.resposta.prazoEntrega || "—"}`}
+                          {" · "}
+                          {f.resposta.condicaoPagamento || "pagamento a combinar"}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {analise.itens.map(({ item, ofertas, melhor }) => (
+                    <tr key={item.id}>
+                      <td className="sticky-col">
+                        <div className="fw-600" style={{ color: "var(--text)" }}>{item.produto.nome}</div>
+                        <div className="text-xs text-muted">{formatNumero(item.quantidade)} {item.produto.unidade}</div>
+                      </td>
+                      {analise.fornecedores.map((f) => {
+                        const o = ofertas.find((x) => x.respostaId === f.resposta.id);
+                        if (!o) {
+                          return (
+                            <td key={f.resposta.id} className="center muted">—</td>
+                          );
+                        }
+                        const best = melhor?.respostaId === o.respostaId;
+                        return (
+                          <td key={f.resposta.id} className={`center ${best ? "cell-best" : ""}`}>
+                            {o.desconto > 0 && <div className="price-strike">{formatMoeda(o.precoUnitario)}</div>}
+                            <div className={best ? "price-best" : "price-final"}>{formatMoeda(o.precoFinal)}</div>
+                            <div className="text-xs text-muted">
+                              {o.marca ? `${o.marca} · ` : ""}total {formatMoeda(o.total)}
+                            </div>
+                            {o.estoqueInsuficiente && (
+                              <div className="text-xs text-warning fw-600">estoque: {formatNumero(o.quantidadeDisponivel)}</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="sticky-col">Total do fornecedor</td>
+                    {analise.fornecedores.map((f) => (
+                      <td key={f.resposta.id} className="center">
+                        {f.descontoGeral > 0 && (
+                          <div className="text-xs text-muted" style={{ fontWeight: 500 }}>
+                            {formatMoeda(f.soma)} − desc. {formatMoeda(f.descontoGeral)}
+                          </div>
+                        )}
+                        <div className={analise.melhorUnico?.resposta.id === f.resposta.id ? "price-best" : ""}>{formatMoeda(f.total)}</div>
+                        <div className="text-xs text-muted" style={{ fontWeight: 500 }}>
+                          {f.completo ? "cotou todos os itens" : `${f.cotados} de ${cotacao.itens.length} itens`}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Fornecedores */}
+          <h2 className="mb-3">Fornecedores</h2>
+          <div className="grid-3">
+            {analise.fornecedores.map((f) => {
+              const r = f.resposta;
+              const wa = linkWhatsapp(r.telefone);
+              return (
+                <div key={r.id} className="card">
+                  <div className="row-nowrap mb-3">
+                    <span className="avatar">{r.nomeFornecedor.slice(0, 2).toUpperCase()}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="fw-700 truncate">{r.nomeFornecedor}</div>
+                      <div className="text-xs text-muted">Enviada em {formatDataHora(r.createdAt)}</div>
+                    </div>
+                  </div>
+                  <dl className="stack-sm text-sm">
+                    {r.cnpj && <div className="flex-between"><dt className="text-muted">CNPJ</dt><dd>{formatDocumento(r.cnpj)}</dd></div>}
+                    <div className="flex-between"><dt className="text-muted">Entrega</dt><dd>{r.entregaImediata ? "Imediata" : r.prazoEntrega || "—"}</dd></div>
+                    <div className="flex-between"><dt className="text-muted">Pagamento</dt><dd>{r.condicaoPagamento || "—"}</dd></div>
+                    {f.descontoGeral > 0 && <div className="flex-between"><dt className="text-muted">Desconto geral</dt><dd className="text-success">{formatMoeda(f.descontoGeral)}</dd></div>}
+                    <div className="flex-between"><dt className="text-muted">Total</dt><dd className="fw-700">{formatMoeda(f.total)}</dd></div>
+                    {r.telefone && <div className="flex-between"><dt className="text-muted">Telefone</dt><dd>{formatTelefone(r.telefone)}</dd></div>}
+                    {r.email && <div className="flex-between"><dt className="text-muted">E-mail</dt><dd className="truncate" style={{ maxWidth: "65%" }}>{r.email}</dd></div>}
+                  </dl>
+                  {r.observacoes && <p className="text-sm mt-3 card card--muted" style={{ padding: "0.6rem 0.8rem" }}>“{r.observacoes}”</p>}
+                  {(wa || r.email) && (
+                    <div className="row mt-4 no-print" style={{ gap: "0.4rem" }}>
+                      {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="btn btn--outline btn--sm"><Icone nome="whatsapp" tamanho={15} /> WhatsApp</a>}
+                      {r.email && <a href={`mailto:${r.email}`} className="btn btn--outline btn--sm"><Icone nome="email" tamanho={15} /> E-mail</a>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 
+// Páginas internas exigem login. A página inicial (/) é pública: mostra o site para quem não está
+// logado e o painel para quem está. O portal do fornecedor (/share) é sempre público.
 export default withAuth({
   pages: {
     signIn: "/login",
@@ -7,13 +9,12 @@ export default withAuth({
 });
 
 export const config = {
-  // Protege a raiz e as rotas de cotação, dashboard, produtos e configurações
   matcher: [
-    "/",
     "/dashboard/:path*",
     "/cotacoes/:path*",
     "/cotacao/:path*",
     "/produtos/:path*",
-    "/configuracoes/:path*"
-  ]
+    "/configuracoes/:path*",
+    "/assinatura/:path*",
+  ],
 };

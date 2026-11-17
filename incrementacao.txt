@@ -1,0 +1,6 @@
+Quando o cliente envia a proposta aparece novamente o nome portal do fornecedor. Deixe somente o primeiro.
+Na opcao de impressao do resumo, preciso que deixe somente a opcao de download do pdf.
+Retire essa parte da pagina do fornecedor  (Se diferente da desejada).
+No dashboard organize para melhor visualizacao comparativa, se nescessario deixe a tabela na horizontal, principalmente no download do pdf. Organize como ficar melhor.
+A parte de vadastro com o e-mail aonde vai o codigo de verificacao, deixe em standby para podermos trabalhar com isso posteriormente.Por enquanto vou deixar a opcao de criar o loguim apenas conectando com o google.
+tambem coloque um botao "sair" quando estiver logado na pagina

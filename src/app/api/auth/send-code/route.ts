@@ -1,82 +1,53 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { resend } from '@/lib/resend';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { enviarEmail, emailCodigo } from "@/lib/email";
 
-const prisma = new PrismaClient();
+const TIPOS = ["REGISTER", "RESET_PASSWORD"] as const;
 
 export async function POST(req: Request) {
   try {
-    const { email, type } = await req.json();
+    const corpo = await req.json().catch(() => ({}));
+    const email = String(corpo.email || "").trim().toLowerCase();
+    const type = corpo.type as (typeof TIPOS)[number];
 
-    if (!email || !type) {
-      return NextResponse.json({ error: 'E-mail e tipo são obrigatórios' }, { status: 400 });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Informe um e-mail válido." }, { status: 400 });
+    }
+    if (!TIPOS.includes(type)) {
+      return NextResponse.json({ error: "Tipo inválido." }, { status: 400 });
     }
 
-    // Gerar código numérico de 6 dígitos
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos de validade
+    const existente = await prisma.user.findUnique({ where: { email }, select: { id: true, password: true } });
 
-    if (type === 'REGISTER') {
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      if (existingUser) {
-        return NextResponse.json({ error: 'Já existe um cadastro com este e-mail. Faça login.' }, { status: 400 });
-      }
+    if (type === "REGISTER" && existente) {
+      return NextResponse.json({ error: "Já existe uma conta com este e-mail. Faça login." }, { status: 400 });
     }
 
-    // Apaga códigos antigos desse e-mail/tipo
-    await prisma.verificationCode.deleteMany({
-      where: { email, type }
+    // No "esqueci a senha", não revela se o e-mail existe: responde igual, mas só envia se houver conta.
+    if (type === "RESET_PASSWORD" && !existente) {
+      return NextResponse.json({ success: true });
+    }
+
+    // No máximo um código por minuto para o mesmo e-mail.
+    const recente = await prisma.verificationCode.findFirst({
+      where: { email, type, createdAt: { gt: new Date(Date.now() - 60 * 1000) } },
     });
+    if (recente) {
+      return NextResponse.json({ error: "Aguarde um minuto para pedir outro código." }, { status: 429 });
+    }
 
-    // Salva o novo código no banco
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await prisma.verificationCode.deleteMany({ where: { email, type } });
     await prisma.verificationCode.create({
-      data: {
-        email,
-        code,
-        type,
-        expiresAt,
-      }
+      data: { email, code, type, expiresAt: new Date(Date.now() + 15 * 60 * 1000) },
     });
 
-    // Em ambiente de desenvolvimento, se não houver chave real, logamos no console para facilitar
-    if (!process.env.RESEND_API_KEY) {
-      console.log(`[DEV MODE] Código para ${email} (${type}): ${code}`);
-      return NextResponse.json({ success: true, devMode: true });
-    }
+    const conteudo = emailCodigo(type, code);
+    const r = await enviarEmail({ para: email, assunto: conteudo.assunto, html: conteudo.html });
 
-    // Envio real via Resend
-    let subject = '';
-    let html = '';
-
-    if (type === 'REGISTER') {
-      subject = 'Seu código de confirmação - Cadastro';
-      html = `
-        <h1>Confirme seu e-mail</h1>
-        <p>Seu código de verificação é: <strong>${code}</strong></p>
-        <p>Este código expira em 15 minutos.</p>
-      `;
-    } else if (type === 'RESET_PASSWORD') {
-      subject = 'Código de Recuperação de Senha';
-      html = `
-        <h1>Recuperação de Senha</h1>
-        <p>Seu código de recuperação é: <strong>${code}</strong></p>
-        <p>Este código expira em 15 minutos.</p>
-      `;
-    }
-
-    await resend.emails.send({
-      from: 'onboarding@resend.dev', // Resend default for testing
-      to: email,
-      subject,
-      html,
-    });
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, devMode: r.modoDesenvolvimento });
   } catch (error) {
-    console.error('Erro ao enviar código:', error);
-    return NextResponse.json({ error: 'Erro interno ao enviar e-mail' }, { status: 500 });
+    console.error("Erro ao enviar código:", error);
+    return NextResponse.json({ error: "Não foi possível enviar o e-mail agora. Tente novamente." }, { status: 500 });
   }
 }
