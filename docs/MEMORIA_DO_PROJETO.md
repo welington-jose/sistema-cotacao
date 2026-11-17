@@ -39,8 +39,8 @@ combinação, economia e pedido sugerido por fornecedor. PDF do comparativo com 
 - Teste de ponta a ponta com Chrome: `node ~/.cotacao-dev-db/e2e.mjs PASTA_DAS_FOTOS`.
 
 ## Colocar no ar (pendente — precisa do dono)
-1. **Banco de produção:** `npx prisma db push` com o `DATABASE_URL` da Neon. Só acrescenta colunas/tabela nova
-   (nada é apagado). Fazer backup/branch na Neon antes, por segurança.
+1. ~~Banco de produção~~ — **feito em 16/11/2026** (`prisma db push` na Neon; o sistema ainda não tinha clientes).
+   Próximas mudanças no schema: rodar `npx prisma db push` de novo.
 2. **Variáveis na hospedagem:** ver `.env.example` (Brevo, Asaas, NEXTAUTH_URL do domínio final).
 3. **Brevo:** criar conta, validar o domínio/remetente, gerar chave da API (`BREVO_API_KEY`).
 4. **Asaas:** pode usar a mesma conta do Arquiva Cloud. Gerar chave, cadastrar o webhook
@@ -54,5 +54,6 @@ combinação, economia e pedido sugerido por fornecedor. PDF do comparativo com 
 - Vários usuários por empresa; histórico de preços por produto; exportar Excel.
 
 ## Linha do tempo
+- 16/11/2026 — Banco da Neon atualizado; PR #1 (`profissional` → `main`) aberto para publicar na Vercel.
 - 16/11/2026 — Ramo `profissional`: redesign completo, site de vendas, PDF real, Brevo, Asaas, correções de
   segurança, catálogo com edição/importação, convites por e-mail/WhatsApp, pedido sugerido por fornecedor.
